@@ -1,12 +1,8 @@
 /*
- * dosbox_bridge.cpp - C bridge implementation for launching DOSBox from iOS
+ * dosbox_bridge.cpp - C bridge for launching DOSBox from iOS
  *
- * This file provides the implementation of the C bridge functions.
- * It includes DOSBox headers and calls into DOSBox's initialization
- * and execution APIs.
- *
- * TODO: This is a skeleton.  The actual DOSBox integration will be
- * filled in once DOSBox-staging compiles as a static library for iOS.
+ * Implements the bridge functions by calling into DOSBox's initialization
+ * and execution APIs.  This replaces DOSBox's main.cpp entry point.
  */
 
 #include "dosbox_bridge.h"
@@ -16,16 +12,40 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <vector>
 
-// TODO: Uncomment when DOSBox headers are available in the build
-// #include "dosbox.h"
-// #include "config/config.h"
-// #include "gui/common.h"
-// #include "shell/shell.h"
+// DOSBox headers
+#include "dosbox.h"
+#include "config/config.h"
+#include "config/setup.h"
+#include "gui/common.h"
+#include "gui/mapper.h"
+#include "gui/render/render.h"
+#include "shell/shell.h"
+#include "shell/command_line.h"
+#include "dos/dos_locale.h"
+#include "misc/cross.h"
+#include "utils/checks.h"
+
+CHECK_NARROWING();
+
+// Global config pointer (declared extern in DOSBox)
+extern std::unique_ptr<Config> control;
 
 static std::atomic<bool> s_running{false};
 static dosbox_frame_callback_t s_frame_cb = nullptr;
 static void *s_frame_ctx = nullptr;
+
+// GFX_ShowMsg is referenced by DOSBox but defined in main.cpp which we don't include
+void GFX_ShowMsg(const char* format, ...)
+{
+    char buf[512];
+    va_list msg;
+    va_start(msg, format);
+    vsnprintf(buf, sizeof(buf), format, msg);
+    va_end(msg);
+    fprintf(stderr, "[DOSBox] %s\n", buf);
+}
 
 /* ---------- config file generation ---------- */
 
@@ -74,7 +94,7 @@ char *dosbox_write_config(const dosbox_config_t *cfg)
     fprintf(f, "pcspeaker=%s\n", cfg->speaker_enabled ? "true" : "false");
     fprintf(f, "\n");
 
-    // [autoexec] - mount disks and run commands
+    // [autoexec] — mount disks and set up boot
     fprintf(f, "[autoexec]\n");
 
     if (cfg->floppy_a_path)
@@ -101,7 +121,6 @@ char *dosbox_write_config(const dosbox_config_t *cfg)
     }
 
     fclose(f);
-
     return strdup(path.c_str());
 }
 
@@ -121,35 +140,69 @@ int dosbox_start(const dosbox_config_t *cfg,
     if (!conf_path) return -1;
 
     s_running.store(true);
+    int return_code = 0;
 
-    /*
-     * TODO: Replace this stub with actual DOSBox initialization:
-     *
-     *   1. Create CommandLine with: --conf <conf_path> --noprimaryconf
-     *   2. control = std::make_unique<Config>(&command_line);
-     *   3. init_config_dir();
-     *   4. DOSBOX_InitModuleConfigsAndMessages();
-     *   5. control->ParseConfigFiles(...);
-     *   6. GFX_InitSdl();
-     *   7. DOSBOX_InitModules();
-     *   8. GFX_InitAndStartGui();
-     *   9. MAPPER_BindKeys(get_sdl_section());
-     *  10. SHELL_InitAndRun();   // blocks until exit
-     *  11. DOSBOX_DestroyModules();
-     *  12. GFX_Destroy();
-     */
+    try {
+        // Build command line: dosbox --conf <path> --noprimaryconf --nolocalconf
+        std::vector<std::string> args = {
+            "dosbox",
+            "--conf", conf_path,
+            "--noprimaryconf",
+            "--nolocalconf"
+        };
 
-    // For now, just log that we would start
-    fprintf(stderr, "[DOSBox Bridge] Would start DOSBox with config: %s\n", conf_path);
+        // Convert to argc/argv for CommandLine
+        int argc = static_cast<int>(args.size());
+        std::vector<char*> argv;
+        for (auto& a : args) argv.push_back(a.data());
+        argv.push_back(nullptr);
+
+        CommandLine command_line(argc, argv.data());
+        control = std::make_unique<Config>(&command_line);
+
+        init_config_dir();
+
+        // Register config sections and messages
+        DOS_Locale_AddMessages();
+        RENDER_AddMessages();
+        GFX_AddConfigSection();
+        DOSBOX_InitModuleConfigsAndMessages();
+
+        // Parse our config file
+        control->ParseConfigFiles(get_config_dir());
+
+        // Initialize SDL and DOSBox modules
+        GFX_InitSdl();
+        DOSBOX_InitModules();
+        GFX_InitAndStartGui();
+
+        MAPPER_BindKeys(get_sdl_section());
+
+        // Start the DOS shell — this blocks until exit
+        SHELL_InitAndRun();
+
+        // Cleanup
+        DOSBOX_DestroyModules();
+        GFX_Destroy();
+
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[DOSBox Bridge] Error: %s\n", e.what());
+        return_code = 1;
+    } catch (...) {
+        fprintf(stderr, "[DOSBox Bridge] Unknown error\n");
+        return_code = 1;
+    }
 
     free(conf_path);
     s_running.store(false);
-    return 0;
+    return return_code;
 }
 
 void dosbox_request_shutdown(void)
 {
-    // TODO: Call DOSBOX_RequestShutdown() when linked
+    if (s_running.load()) {
+        DOSBOX_RequestShutdown();
+    }
     s_running.store(false);
 }
 
@@ -162,28 +215,49 @@ int dosbox_is_running(void)
 
 void dosbox_inject_key(int sdl_scancode, int pressed)
 {
-    // TODO: Push SDL_KEYDOWN/SDL_KEYUP event into SDL event queue
-    // SDL_Event event;
-    // event.type = pressed ? SDL_KEYDOWN : SDL_KEYUP;
-    // event.key.keysym.scancode = (SDL_Scancode)sdl_scancode;
-    // SDL_PushEvent(&event);
-    (void)sdl_scancode; (void)pressed;
+    // Push SDL keyboard event into SDL's event queue
+    // DOSBox polls SDL events in its main loop
+    SDL_Event event = {};
+    event.type = pressed ? SDL_KEYDOWN : SDL_KEYUP;
+    event.key.keysym.scancode = static_cast<SDL_Scancode>(sdl_scancode);
+    event.key.keysym.sym = SDL_GetKeyFromScancode(event.key.keysym.scancode);
+    event.key.state = pressed ? SDL_PRESSED : SDL_RELEASED;
+    SDL_PushEvent(&event);
 }
 
 void dosbox_inject_char(uint16_t unicode_char)
 {
-    // TODO: Push SDL_TEXTINPUT event
-    (void)unicode_char;
+    // Push SDL text input event
+    SDL_Event event = {};
+    event.type = SDL_TEXTINPUT;
+    // UTF-8 encode the character
+    if (unicode_char < 0x80) {
+        event.text.text[0] = static_cast<char>(unicode_char);
+        event.text.text[1] = '\0';
+    } else if (unicode_char < 0x800) {
+        event.text.text[0] = static_cast<char>(0xC0 | (unicode_char >> 6));
+        event.text.text[1] = static_cast<char>(0x80 | (unicode_char & 0x3F));
+        event.text.text[2] = '\0';
+    }
+    SDL_PushEvent(&event);
 }
 
 void dosbox_inject_mouse(int dx, int dy, int buttons)
 {
-    // TODO: Push SDL_MOUSEMOTION + SDL_MOUSEBUTTONDOWN/UP events
-    (void)dx; (void)dy; (void)buttons;
+    SDL_Event event = {};
+    event.type = SDL_MOUSEMOTION;
+    event.motion.xrel = dx;
+    event.motion.yrel = dy;
+    event.motion.state = static_cast<uint32_t>(buttons);
+    SDL_PushEvent(&event);
 }
 
 void dosbox_inject_mouse_abs(int x, int y, int buttons)
 {
-    // TODO: Push absolute mouse position via SDL or DOSBox mouse API
-    (void)x; (void)y; (void)buttons;
+    SDL_Event event = {};
+    event.type = SDL_MOUSEMOTION;
+    event.motion.x = x;
+    event.motion.y = y;
+    event.motion.state = static_cast<uint32_t>(buttons);
+    SDL_PushEvent(&event);
 }
