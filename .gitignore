@@ -24,3 +24,4 @@ fd/GAMES.TXT
 
 # DOS COM programs (built from asm)
 dos/*.com
+build-macos/
