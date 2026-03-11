@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "base_url": "https://github.com/avwohl/iosFreeDOS/releases/latest/download/",
+  "topics": [
+    {
+      "id": "quick_start",
+      "title": "Quick Start Guide",
+      "description": "Getting started with FreeDOS",
+      "filename": "help_quick_start.md"
+    },
+    {
+      "id": "file_transfer",
+      "title": "File Transfer (R/W)",
+      "description": "Transfer files between DOS and host with R.COM and W.COM",
+      "filename": "help_file_transfer.md"
+    },
+    {
+      "id": "networking",
+      "title": "Networking (NE2000)",
+      "description": "Set up NE2000 Ethernet, packet driver, and mTCP",
+      "filename": "help_networking.md"
+    }
+  ]
+}

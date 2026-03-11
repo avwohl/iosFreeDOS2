@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog version="12">
+    <disk>
+        <filename>freedos_starter.img</filename>
+        <name>FreeDOS Starter</name>
+        <type>hdd</type>
+        <description>22MB bootable FreeDOS with DOOM and Duke Nukem. Includes DPMI support. Small download.</description>
+        <size>23224320</size>
+        <license>GPL / Shareware</license>
+        <sha256>25bb18be35f6c8c48f030b53b6c51c0520a9116c8d06eeedbc9735a786e8f3a5</sha256>
+        <defaultDrive>128</defaultDrive>
+    </disk>
+    <disk>
+        <filename>freedos_hd.img</filename>
+        <name>FreeDOS Hard Disk</name>
+        <type>hdd</type>
+        <description>200MB bootable hard disk with FreeDOS 1.4, 230 utilities, archivers, editors, and disk tools.</description>
+        <size>210051072</size>
+        <license>GPL / Mixed Freeware</license>
+        <sha256>ci-computed</sha256>
+    </disk>
+    <disk>
+        <filename>freedos_games.img</filename>
+        <name>DOS Games Collection</name>
+        <type>hdd</type>
+        <description>200MB hard disk with 11 classic shareware games: Duke Nukem, Bio Menace, Jill of the Jungle, God of Thunder, Supaplex, and more. Mount as D: drive.</description>
+        <size>210051072</size>
+        <license>Mixed Freeware</license>
+        <sha256>ci-computed</sha256>
+    </disk>
+    <disk>
+        <filename>fd13-floppy.img</filename>
+        <name>FreeDOS 1.3 Boot Floppy</name>
+        <type>floppy</type>
+        <description>FreeDOS 1.3 boot floppy (1.44MB). Boot and install to hard disk.</description>
+        <size>1474560</size>
+        <license>GPL</license>
+        <sha256></sha256>
+    </disk>
+    <disk>
+        <filename>fd12-floppy.img</filename>
+        <name>FreeDOS 1.2 Boot Floppy</name>
+        <type>floppy</type>
+        <description>FreeDOS 1.2 boot floppy (1.44MB). Compatible with 8088 CPU.</description>
+        <size>1474560</size>
+        <license>GPL</license>
+        <sha256></sha256>
+    </disk>
+    <disk>
+        <filename>msdos622-boot.img</filename>
+        <name>MS-DOS 6.22 Boot Floppy</name>
+        <type>floppy</type>
+        <description>MS-DOS 6.22 setup disk 1 (1.44MB). Requires additional disks for full install.</description>
+        <size>1474560</size>
+        <license>Proprietary</license>
+        <sha256></sha256>
+    </disk>
+    <disk>
+        <filename>fd13-full.iso</filename>
+        <name>FreeDOS 1.3 Full CD</name>
+        <type>iso</type>
+        <description>FreeDOS 1.3 full install CD-ROM image with all packages.</description>
+        <size>652214272</size>
+        <license>GPL</license>
+        <sha256></sha256>
+    </disk>
+    <disk>
+        <filename>fd13-lite.iso</filename>
+        <name>FreeDOS 1.3 Lite CD</name>
+        <type>iso</type>
+        <description>FreeDOS 1.3 lite CD-ROM image with base system only.</description>
+        <size>167772160</size>
+        <license>GPL</license>
+        <sha256></sha256>
+    </disk>
+</catalog>

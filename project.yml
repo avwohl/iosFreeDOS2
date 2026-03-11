@@ -1,0 +1,38 @@
+name: iosFreeDOS
+options:
+  bundleIdPrefix: com.awohl
+  deploymentTarget:
+    iOS: "15.0"
+  xcodeVersion: "15.0"
+settings:
+  base:
+    CLANG_CXX_LANGUAGE_STANDARD: c++20
+    SUPPORTS_MACCATALYST: YES
+targets:
+  iosFreeDOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: iosFreeDOS
+      - path: dosbox-ios
+    configFiles:
+      Debug: Config.xcconfig
+      Release: Config.xcconfig
+    settings:
+      base:
+        SWIFT_OBJC_BRIDGING_HEADER: iosFreeDOS/iosFreeDOS-Bridging-Header.h
+        GCC_PREPROCESSOR_DEFINITIONS:
+          - IOSFREEDOS_VERSION="\"v$(MARKETING_VERSION) ($(CURRENT_PROJECT_VERSION))\""
+        HEADER_SEARCH_PATHS:
+          - $(SRCROOT)/dosbox-ios
+          - $(SRCROOT)/iosFreeDOS/Bridge
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown
+        INFOPLIST_KEY_UIRequiresFullScreen: NO
+        MARKETING_VERSION: "2.0"
+        CURRENT_PROJECT_VERSION: 1
+        PRODUCT_BUNDLE_IDENTIFIER: com.awohl.FreeDOS
+        INFOPLIST_KEY_CFBundleDisplayName: FreeDOS
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        GENERATE_INFOPLIST_FILE: YES

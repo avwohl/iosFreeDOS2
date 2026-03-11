@@ -1,0 +1,164 @@
+name: Build Release Assets
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: true
+        type: string
+      create_release:
+        description: 'Create GitHub release'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install NASM
+        run: brew install nasm
+
+      - name: Install mtools and dosfstools
+        run: brew install mtools dosfstools
+
+      - name: Build DOS utilities
+        run: |
+          nasm -f bin -o dos/r.com dos/r.asm
+          nasm -f bin -o dos/w.com dos/w.asm
+          nasm -f bin -o dos/dpmitest.com dos/dpmitest.asm
+
+      - name: Download FreeDOS boot floppy
+        run: |
+          mkdir -p fd
+          # Original: https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/distributions/1.4/official/FD14BOOT.img
+          curl -L --retry 3 --connect-timeout 30 -o fd/freedos.img \
+            https://www.awohl.com/freedos/freedos.img
+
+      - name: Download FreeDOS 1.4 ISOs
+        run: |
+          # Original sources (ibiblio rate-limits CI runners):
+          #   https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/distributions/1.4/official/FD14LIVE.iso
+          #   https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/distributions/1.4/official/FD14BNS.iso
+          echo "Downloading FreeDOS 1.4 LiveCD..."
+          curl -L --retry 3 --connect-timeout 30 -o fd/FD14LIVE.iso \
+            https://www.awohl.com/freedos/FD14LIVE.iso
+          echo "Downloading FreeDOS 1.4 Bonus CD..."
+          curl -L --retry 3 --connect-timeout 30 -o fd/FD14BNS.iso \
+            https://www.awohl.com/freedos/FD14BNS.iso
+          ls -lh fd/*.iso
+
+      - name: Download DOOM shareware
+        run: |
+          mkdir -p /tmp/doom_sw
+          # Original: https://archive.org/download/DoomsharewareEpisode/doom.ZIP
+          curl -L --retry 3 --connect-timeout 30 -o /tmp/doom_sw.zip \
+            https://www.awohl.com/freedos/doom.ZIP
+          cd /tmp/doom_sw && unzip -o /tmp/doom_sw.zip
+          ls -lh /tmp/doom_sw/DOOM.EXE /tmp/doom_sw/DOOM1.WAD
+
+      - name: Build starter disk image
+        run: scripts/build_starter_disk.sh
+
+      - name: Build hard disk image
+        run: scripts/build_hdd.sh
+
+      - name: Build games disk image
+        run: scripts/build_games_disk.sh
+
+      - name: Update disk catalog SHA256 from built images
+        run: |
+          python3 << 'PYEOF'
+          import hashlib, os, re
+
+          disks = {
+            "freedos_starter.img": "fd/freedos_starter.img",
+            "freedos_hd.img": "fd/freedos_hd.img",
+            "freedos_games.img": "fd/freedos_games.img",
+          }
+
+          xml_path = "release_assets/disks.xml"
+          xml = open(xml_path).read()
+
+          for fname, path in disks.items():
+              if not os.path.exists(path):
+                  print(f"SKIP: {fname} not found")
+                  continue
+              data = open(path, "rb").read()
+              sha = hashlib.sha256(data).hexdigest()
+              size = len(data)
+              print(f"{fname}: sha256={sha} size={size}")
+              pattern = f"(<filename>{fname}</filename>.*?<sha256>).*?(</sha256>)"
+              xml = re.sub(pattern, f"\\g<1>{sha}\\g<2>", xml, flags=re.DOTALL)
+              pattern = f"(<filename>{fname}</filename>.*?<size>).*?(</size>)"
+              xml = re.sub(pattern, f"\\g<1>{size}\\g<2>", xml, count=1, flags=re.DOTALL)
+
+          open(xml_path, "w").write(xml)
+          print("--- Updated disks.xml ---")
+          print(xml)
+          PYEOF
+
+      - name: Verify disk catalog SHA256
+        run: |
+          fail=0
+          for img in fd/freedos_starter.img fd/freedos_hd.img fd/freedos_games.img; do
+            [ -f "$img" ] || continue
+            fname=$(basename "$img")
+            actual=$(shasum -a 256 "$img" | cut -d' ' -f1)
+            expected=$(grep -A6 "<filename>$fname</filename>" release_assets/disks.xml | grep sha256 | sed 's/.*<sha256>//;s/<.*//')
+            if [ "$actual" != "$expected" ]; then
+              echo "FAIL: $fname SHA256 mismatch"
+              echo "  expected: $expected"
+              echo "  actual:   $actual"
+              fail=1
+            else
+              echo "OK: $fname $actual"
+            fi
+          done
+          [ $fail -eq 0 ] || exit 1
+
+      - name: Collect release assets
+        run: |
+          mkdir -p dist
+          # Help system
+          cp release_assets/help_index.json dist/
+          cp release_assets/help_*.md dist/
+          # Disk catalog (with CI-computed SHA256)
+          cp release_assets/disks.xml dist/
+          # DOS utilities
+          cp dos/r.com dist/
+          cp dos/w.com dist/
+          # Boot disk
+          cp fd/freedos.img dist/
+          # Disk images
+          cp fd/freedos_starter.img dist/
+          if [ -f fd/freedos_hd.img ]; then
+            cp fd/freedos_hd.img dist/
+          fi
+          if [ -f fd/freedos_games.img ]; then
+            cp fd/freedos_games.img dist/
+          fi
+          if [ -d fd/games ]; then
+            tar czf dist/shareware-games.tar.gz -C fd games GAMES.TXT
+          fi
+          # Generate checksums
+          cd dist && shasum -a 256 * > SHA256SUMS
+
+      - name: List assets
+        run: ls -la dist/
+
+      - name: Create Release
+        if: ${{ inputs.create_release }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ inputs.tag }}" \
+            --title "FreeDOS Emulator ${{ inputs.tag }}" \
+            --generate-notes \
+            dist/*

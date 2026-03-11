@@ -1,0 +1,26 @@
+obj/
+*.o
+*~
+.DS_Store
+build/
+*.log
+docs/
+
+# Xcode
+iosFreeDOS.xcodeproj/
+Local.xcconfig
+DerivedData/
+*.xcworkspace
+
+# Disk images (generated / large)
+fd/x86*.img
+fd/*_dev.img
+fd/freedos_hd.img
+fd/freedos_games.img
+fd/*.iso
+fd/freedos.img
+fd/games/
+fd/GAMES.TXT
+
+# DOS COM programs (built from asm)
+dos/*.com
