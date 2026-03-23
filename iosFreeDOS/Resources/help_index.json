@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "base_url": "https://github.com/avwohl/iosFreeDOS2/releases/latest/download/",
   "topics": [
     {
@@ -31,6 +31,12 @@
       "title": "File Transfer (R / W)",
       "description": "Transfer files between DOS and your device using R and W commands",
       "filename": "help_file_transfer.md"
+    },
+    {
+      "id": "disk_images",
+      "title": "Creating Disk Images",
+      "description": "How to create compatible hard disk images for DOSBox, QEMU, Bochs, and other emulators",
+      "filename": "help_disk_images.md"
     },
     {
       "id": "networking",
