@@ -58,9 +58,14 @@ struct TerminalWithToolbar: View {
     var onToggleAlt: (() -> Void)?
     var onMouseUpdate: ((Int, Int, Int) -> Void)?
     var onViewCreated: ((TerminalUIView) -> Void)?
+    var onTouchEditor: (() -> Void)?
+    var onToggleTouchControls: (() -> Void)?
+    var onHelp: (() -> Void)?
     var isControlifyActive: Bool = false
     var isFnActive: Bool = false
     var isAltActive: Bool = false
+    var hasTouchLayout: Bool = false
+    var showTouchControls: Bool = false
 
     let rows: Int
     let cols: Int
@@ -83,37 +88,65 @@ struct TerminalWithToolbar: View {
 
                 Divider().frame(width: 28).padding(.vertical, 2)
 
-                // Common special keys
+                // Common keys
                 ToolbarButton(title: "Esc", isActive: false) {
                     onSetControlify?(0)
                     onKeyInput?(Character(UnicodeScalar(27)))
+                }
+                ToolbarButton(title: "↵", isActive: false) {
+                    onSetControlify?(0)
+                    onKeyInput?(Character("\r"))
                 }
                 ToolbarButton(title: "Tab", isActive: false) {
                     onSetControlify?(0)
                     onKeyInput?(Character(UnicodeScalar(9)))
                 }
+
+                Divider().frame(width: 28).padding(.vertical, 2)
+
                 ToolbarButton(title: "Del", isActive: false) {
                     onScancode?(0, 0x53)
                 }
                 ToolbarButton(title: "Ins", isActive: false) {
                     onScancode?(0, 0x52)
                 }
-
-                Divider().frame(width: 28).padding(.vertical, 2)
-
-                // Navigation
                 ToolbarButton(title: "PgU", isActive: false) {
                     onScancode?(0, 0x49)
                 }
                 ToolbarButton(title: "PgD", isActive: false) {
                     onScancode?(0, 0x51)
                 }
-                ToolbarButton(title: "Hom", isActive: false) {
-                    onScancode?(0, 0x47)
+
+                if hasTouchLayout {
+                    Divider().frame(width: 28).padding(.vertical, 2)
+
+                    Button { onTouchEditor?() } label: {
+                        Image(systemName: "gamecontroller")
+                            .frame(width: 36, height: 28)
+                            .background(Color(UIColor.systemGray4))
+                            .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button { onToggleTouchControls?() } label: {
+                        Image(systemName: showTouchControls ? "eye.fill" : "eye.slash")
+                            .frame(width: 36, height: 28)
+                            .background(showTouchControls ? Color.blue : Color(UIColor.systemGray4))
+                            .foregroundColor(showTouchControls ? .white : .primary)
+                            .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
                 }
-                ToolbarButton(title: "End", isActive: false) {
-                    onScancode?(0, 0x4F)
+
+                Divider().frame(width: 28).padding(.vertical, 2)
+
+                Button { onHelp?() } label: {
+                    Image(systemName: "questionmark.circle")
+                        .frame(width: 36, height: 28)
+                        .background(Color(UIColor.systemGray4))
+                        .cornerRadius(6)
                 }
+                .buttonStyle(.plain)
 
                 Spacer()
             }
@@ -487,6 +520,9 @@ class TerminalUIView: UIView, UIKeyInput {
     /// Map USB HID key codes to IBM PC scancodes for keys not in the text input path
     private static func hidToDosScancode(_ usage: UIKeyboardHIDUsage) -> UInt8? {
         switch usage {
+        case .keyboardDeleteOrBackspace: return 0x0E
+        case .keyboardEscape:        return 0x01
+        case .keyboardTab:           return 0x0F
         case .keyboardF1:            return 0x3B
         case .keyboardF2:            return 0x3C
         case .keyboardF3:            return 0x3D

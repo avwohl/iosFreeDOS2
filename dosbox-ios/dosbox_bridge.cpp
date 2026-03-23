@@ -6,10 +6,14 @@
  */
 
 #include "dosbox_bridge.h"
+#include "int_e0_hostio.h"
 
 // Tell SDL we handle the application lifecycle ourselves (SwiftUI owns main)
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
+
+#include <dispatch/dispatch.h>
+#include <pthread.h>
 
 #include <atomic>
 #include <cstdio>
@@ -112,6 +116,7 @@ char *dosbox_write_config(const dosbox_config_t *cfg)
     // cycles == 0: 3000 for real mode (classic "auto")
     // cycles < 0: max everywhere
     fprintf(f, "[cpu]\n");
+    fprintf(f, "cputype=%s\n", cfg->cputype ? cfg->cputype : "auto");
     if (cfg->cycles > 0) {
         fprintf(f, "cpu_cycles=%d\n", cfg->cycles);
     } else if (cfg->cycles < 0) {
@@ -151,13 +156,22 @@ char *dosbox_write_config(const dosbox_config_t *cfg)
     fprintf(f, "pcspeaker=%s\n", cfg->speaker_enabled ? "impulse" : "none");
     fprintf(f, "\n");
 
-    // [autoexec] — mount disks and set up boot
+    // [ethernet] — NE2000 NIC with SLIRP userspace networking
+    fprintf(f, "[ethernet]\n");
+    fprintf(f, "ne2000=true\n");
+    fprintf(f, "nicbase=300\n");
+    fprintf(f, "nicirq=3\n");
+    fprintf(f, "macaddr=AC:DE:48:88:BB:AA\n");
+    fprintf(f, "\n");
+
+    // [autoexec] — mount disks and boot
     fprintf(f, "[autoexec]\n");
 
     if (cfg->floppy_a_path)
         fprintf(f, "imgmount a \"%s\" -t floppy\n", cfg->floppy_a_path);
     if (cfg->floppy_b_path)
         fprintf(f, "imgmount b \"%s\" -t floppy\n", cfg->floppy_b_path);
+
     if (cfg->hdd_c_path)
         fprintf(f, "imgmount c \"%s\" -t hdd -fs fat\n", cfg->hdd_c_path);
     if (cfg->hdd_d_path)
@@ -171,13 +185,13 @@ char *dosbox_write_config(const dosbox_config_t *cfg)
             fprintf(f, "%s\n", cfg->autoexec[i]);
     }
 
-    // Boot from floppy if present, otherwise switch to C:
-    // Floppy images need `boot` to execute the boot sector.
-    // HDD FAT images are already accessible via mount — just switch to C:.
+    // Switch to C: and run its AUTOEXEC.BAT if present
     if (cfg->floppy_a_path) {
         fprintf(f, "boot a:\n");
     } else if (cfg->hdd_c_path) {
         fprintf(f, "c:\n");
+        fprintf(f, "if exist c:\\autoexec.bat call c:\\autoexec.bat\n");
+        fprintf(f, "SET DIRCMD=/ON\n");
     }
 
     fclose(f);
@@ -251,6 +265,7 @@ int dosbox_start(const dosbox_config_t *cfg,
 
         GFX_InitSdl();
         DOSBOX_InitModules();
+        HOSTIO_Init(cfg ? cfg->host_dir : nullptr);
         GFX_InitAndStartGui();
 
         MAPPER_BindKeys(get_sdl_section());
@@ -259,6 +274,7 @@ int dosbox_start(const dosbox_config_t *cfg,
         SHELL_InitAndRun();
 
         // Cleanup
+        HOSTIO_Destroy();
         DOSBOX_DestroyModules();
         GFX_Destroy();
 
@@ -275,8 +291,10 @@ int dosbox_start(const dosbox_config_t *cfg,
     return return_code;
 }
 
-// Stored config path for two-phase API
+// Stored state for two-phase API (must outlive dosbox_init → dosbox_run)
 static char *s_conf_path = nullptr;
+static std::unique_ptr<CommandLine> s_cmdline;
+static std::string s_host_dir;
 
 int dosbox_init(const dosbox_config_t *cfg,
                 dosbox_frame_callback_t frame_cb,
@@ -310,8 +328,8 @@ int dosbox_init(const dosbox_config_t *cfg,
         for (auto& a : args) argv.push_back(a.data());
         argv.push_back(nullptr);
 
-        CommandLine command_line(argc, argv.data());
-        control = std::make_unique<Config>(&command_line);
+        s_cmdline = std::make_unique<CommandLine>(argc, argv.data());
+        control = std::make_unique<Config>(s_cmdline.get());
 
         init_config_dir();
 
@@ -325,6 +343,8 @@ int dosbox_init(const dosbox_config_t *cfg,
         // These touch UIKit and MUST run on the main thread
         GFX_InitSdl();
         DOSBOX_InitModules();
+        s_host_dir = (cfg && cfg->host_dir) ? cfg->host_dir : "";
+        HOSTIO_Init(s_host_dir.empty() ? nullptr : s_host_dir.c_str());
         GFX_InitAndStartGui();
         MAPPER_BindKeys(get_sdl_section());
 
@@ -332,18 +352,22 @@ int dosbox_init(const dosbox_config_t *cfg,
         fprintf(stderr, "[DOSBox Bridge] Init error: %s\n", e.what());
         free(s_conf_path);
         s_conf_path = nullptr;
+        s_cmdline.reset();
         s_running.store(false);
         return -1;
     } catch (...) {
         fprintf(stderr, "[DOSBox Bridge] Init unknown error\n");
         free(s_conf_path);
         s_conf_path = nullptr;
+        s_cmdline.reset();
         s_running.store(false);
         return -1;
     }
 
     return 0;
 }
+
+static void dosbox_gfx_destroy_on_main(void *) { GFX_Destroy(); }
 
 int dosbox_run(void)
 {
@@ -354,9 +378,15 @@ int dosbox_run(void)
         // Start the DOS shell — this blocks until exit
         SHELL_InitAndRun();
 
-        // Cleanup
+        // Cleanup — GFX_Destroy touches UIKit and must run on main thread
+        HOSTIO_Destroy();
         DOSBOX_DestroyModules();
-        GFX_Destroy();
+        if (pthread_main_np()) {
+            GFX_Destroy();
+        } else {
+            dispatch_sync_f(dispatch_get_main_queue(), nullptr,
+                            dosbox_gfx_destroy_on_main);
+        }
 
     } catch (const std::exception& e) {
         fprintf(stderr, "[DOSBox Bridge] Run error: %s\n", e.what());
@@ -368,6 +398,8 @@ int dosbox_run(void)
 
     free(s_conf_path);
     s_conf_path = nullptr;
+    s_cmdline.reset();
+    s_host_dir.clear();
     s_running.store(false);
     return return_code;
 }
@@ -399,21 +431,94 @@ void dosbox_inject_key(int sdl_scancode, int pressed)
     SDL_PushEvent(&event);
 }
 
+// Map ASCII to SDL scancode + whether shift is needed
+static bool ascii_to_sdl(uint16_t ch, SDL_Scancode &sc, bool &shift)
+{
+    shift = false;
+    if (ch >= 'a' && ch <= 'z') { sc = (SDL_Scancode)(SDL_SCANCODE_A + (ch - 'a')); return true; }
+    if (ch >= 'A' && ch <= 'Z') { sc = (SDL_Scancode)(SDL_SCANCODE_A + (ch - 'A')); shift = true; return true; }
+    if (ch >= '1' && ch <= '9') { sc = (SDL_Scancode)(SDL_SCANCODE_1 + (ch - '1')); return true; }
+    if (ch == '0') { sc = SDL_SCANCODE_0; return true; }
+    switch (ch) {
+        case '\r': case '\n': sc = SDL_SCANCODE_RETURN; return true;
+        case ' ':  sc = SDL_SCANCODE_SPACE; return true;
+        case '\t': sc = SDL_SCANCODE_TAB; return true;
+        case 0x08: sc = SDL_SCANCODE_BACKSPACE; return true;
+        case 0x1B: sc = SDL_SCANCODE_ESCAPE; return true;
+        case '-':  sc = SDL_SCANCODE_MINUS; return true;
+        case '=':  sc = SDL_SCANCODE_EQUALS; return true;
+        case '[':  sc = SDL_SCANCODE_LEFTBRACKET; return true;
+        case ']':  sc = SDL_SCANCODE_RIGHTBRACKET; return true;
+        case '\\': sc = SDL_SCANCODE_BACKSLASH; return true;
+        case ';':  sc = SDL_SCANCODE_SEMICOLON; return true;
+        case '\'': sc = SDL_SCANCODE_APOSTROPHE; return true;
+        case '`':  sc = SDL_SCANCODE_GRAVE; return true;
+        case ',':  sc = SDL_SCANCODE_COMMA; return true;
+        case '.':  sc = SDL_SCANCODE_PERIOD; return true;
+        case '/':  sc = SDL_SCANCODE_SLASH; return true;
+        // Shifted symbols
+        case '!':  sc = SDL_SCANCODE_1; shift = true; return true;
+        case '@':  sc = SDL_SCANCODE_2; shift = true; return true;
+        case '#':  sc = SDL_SCANCODE_3; shift = true; return true;
+        case '$':  sc = SDL_SCANCODE_4; shift = true; return true;
+        case '%':  sc = SDL_SCANCODE_5; shift = true; return true;
+        case '^':  sc = SDL_SCANCODE_6; shift = true; return true;
+        case '&':  sc = SDL_SCANCODE_7; shift = true; return true;
+        case '*':  sc = SDL_SCANCODE_8; shift = true; return true;
+        case '(':  sc = SDL_SCANCODE_9; shift = true; return true;
+        case ')':  sc = SDL_SCANCODE_0; shift = true; return true;
+        case '_':  sc = SDL_SCANCODE_MINUS; shift = true; return true;
+        case '+':  sc = SDL_SCANCODE_EQUALS; shift = true; return true;
+        case '{':  sc = SDL_SCANCODE_LEFTBRACKET; shift = true; return true;
+        case '}':  sc = SDL_SCANCODE_RIGHTBRACKET; shift = true; return true;
+        case '|':  sc = SDL_SCANCODE_BACKSLASH; shift = true; return true;
+        case ':':  sc = SDL_SCANCODE_SEMICOLON; shift = true; return true;
+        case '"':  sc = SDL_SCANCODE_APOSTROPHE; shift = true; return true;
+        case '~':  sc = SDL_SCANCODE_GRAVE; shift = true; return true;
+        case '<':  sc = SDL_SCANCODE_COMMA; shift = true; return true;
+        case '>':  sc = SDL_SCANCODE_PERIOD; shift = true; return true;
+        case '?':  sc = SDL_SCANCODE_SLASH; shift = true; return true;
+        default: return false;
+    }
+}
+
 void dosbox_inject_char(uint16_t unicode_char)
 {
-    // Push SDL text input event
-    SDL_Event event = {};
-    event.type = SDL_TEXTINPUT;
-    // UTF-8 encode the character
-    if (unicode_char < 0x80) {
-        event.text.text[0] = static_cast<char>(unicode_char);
-        event.text.text[1] = '\0';
-    } else if (unicode_char < 0x800) {
-        event.text.text[0] = static_cast<char>(0xC0 | (unicode_char >> 6));
-        event.text.text[1] = static_cast<char>(0x80 | (unicode_char & 0x3F));
-        event.text.text[2] = '\0';
+    SDL_Scancode sc;
+    bool shift;
+    if (!ascii_to_sdl(unicode_char, sc, shift)) return;
+
+    if (shift) {
+        SDL_Event se = {};
+        se.type = SDL_KEYDOWN;
+        se.key.keysym.scancode = SDL_SCANCODE_LSHIFT;
+        se.key.keysym.sym = SDLK_LSHIFT;
+        se.key.state = SDL_PRESSED;
+        SDL_PushEvent(&se);
     }
-    SDL_PushEvent(&event);
+
+    SDL_Event down = {};
+    down.type = SDL_KEYDOWN;
+    down.key.keysym.scancode = sc;
+    down.key.keysym.sym = SDL_GetKeyFromScancode(sc);
+    down.key.state = SDL_PRESSED;
+    SDL_PushEvent(&down);
+
+    SDL_Event up = {};
+    up.type = SDL_KEYUP;
+    up.key.keysym.scancode = sc;
+    up.key.keysym.sym = SDL_GetKeyFromScancode(sc);
+    up.key.state = SDL_RELEASED;
+    SDL_PushEvent(&up);
+
+    if (shift) {
+        SDL_Event se = {};
+        se.type = SDL_KEYUP;
+        se.key.keysym.scancode = SDL_SCANCODE_LSHIFT;
+        se.key.keysym.sym = SDLK_LSHIFT;
+        se.key.state = SDL_RELEASED;
+        SDL_PushEvent(&se);
+    }
 }
 
 void dosbox_inject_mouse(int dx, int dy, int buttons)

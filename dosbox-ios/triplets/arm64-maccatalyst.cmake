@@ -1,0 +1,8 @@
+set(VCPKG_TARGET_ARCHITECTURE arm64)
+set(VCPKG_CRT_LINKAGE dynamic)
+set(VCPKG_LIBRARY_LINKAGE static)
+set(VCPKG_CMAKE_SYSTEM_NAME iOS)
+set(VCPKG_C_FLAGS "-target arm64-apple-ios15.0-macabi -iframework /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/iOSSupport/System/Library/Frameworks")
+set(VCPKG_CXX_FLAGS "${VCPKG_C_FLAGS}")
+set(VCPKG_OSX_ARCHITECTURES arm64)
+set(VCPKG_OSX_DEPLOYMENT_TARGET 15.0)

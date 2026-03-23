@@ -4,7 +4,6 @@ obj/
 .DS_Store
 build*/
 *.log
-docs/
 
 # Xcode
 iosFreeDOS.xcodeproj/

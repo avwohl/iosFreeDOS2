@@ -29,8 +29,10 @@ if(NOT SDL2_image_FOUND)
     endif()
 endif()
 
-# libpng — required for capture/screenshots
-find_package(PNG QUIET)
+# libpng — optional, for capture/screenshots
+if(NOT DOSBOX_DISABLE_PNG)
+    find_package(PNG QUIET)
+endif()
 
 # speexdsp — required for audio resampling
 find_package(PkgConfig)
@@ -38,13 +40,33 @@ if(PkgConfig_FOUND)
     pkg_check_modules(SPEEXDSP speexdsp)
 endif()
 
-# iir — audio filtering (try pkg-config, cmake, or header-only)
-if(PkgConfig_FOUND)
+# iir — audio filtering
+# Try system/Homebrew first, fall back to vendored source
+if(PkgConfig_FOUND AND NOT DOSBOX_DISABLE_IIR)
     pkg_check_modules(IIR iir)
 endif()
+if(NOT IIR_FOUND)
+    # Build vendored iir1 from source (MIT license)
+    set(IIR1_DIR ${CMAKE_CURRENT_SOURCE_DIR}/iir1)
+    if(EXISTS ${IIR1_DIR}/Biquad.cpp)
+        add_library(iir1 STATIC
+            ${IIR1_DIR}/Biquad.cpp
+            ${IIR1_DIR}/Butterworth.cpp
+            ${IIR1_DIR}/Cascade.cpp
+            ${IIR1_DIR}/ChebyshevI.cpp
+            ${IIR1_DIR}/ChebyshevII.cpp
+            ${IIR1_DIR}/Custom.cpp
+            ${IIR1_DIR}/PoleFilter.cpp
+            ${IIR1_DIR}/RBJ.cpp
+        )
+        target_include_directories(iir1 PUBLIC ${IIR1_DIR})
+        target_include_directories(iir1 PRIVATE ${IIR1_DIR}/iir)
+        set(IIR_VENDORED TRUE)
+    endif()
+endif()
 
-# opusfile — for opus audio decoding
-if(PkgConfig_FOUND)
+# opusfile — for opus audio decoding (optional)
+if(PkgConfig_FOUND AND NOT DOSBOX_DISABLE_OPUS)
     pkg_check_modules(OPUSFILE opusfile)
 endif()
 
@@ -65,15 +87,20 @@ target_include_directories(loguru PUBLIC ${DB}/libs/loguru ${COMMON_INCLUDES})
 target_compile_definitions(loguru PUBLIC LOGURU_USE_FMTLIB=0)
 
 # Audio decoders
-add_library(decoders STATIC
+set(DECODER_SOURCES
     ${DB}/libs/decoders/flac.c
     ${DB}/libs/decoders/mp3.cpp
     ${DB}/libs/decoders/mp3_seek_table.cpp
-    ${DB}/libs/decoders/opus.cpp
     ${DB}/libs/decoders/SDL_sound.c
     ${DB}/libs/decoders/vorbis.c
     ${DB}/libs/decoders/wav.c
 )
+if(OPUSFILE_FOUND)
+    list(APPEND DECODER_SOURCES ${DB}/libs/decoders/opus.cpp)
+else()
+    list(APPEND DECODER_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stubs/opus_stub.c)
+endif()
+add_library(decoders STATIC ${DECODER_SOURCES})
 target_include_directories(decoders PUBLIC
     ${COMMON_INCLUDES}
     ${DB}/libs/decoders
@@ -118,6 +145,28 @@ find_package(ZLIB REQUIRED)
 add_library(zmbv STATIC ${DB}/libs/zmbv/zmbv.cpp)
 target_include_directories(zmbv PUBLIC ${DB}/libs/zmbv ${COMMON_INCLUDES})
 target_link_libraries(zmbv PRIVATE ZLIB::ZLIB)
+
+# ============================================================================
+# Patched DOSBox sources
+# ============================================================================
+# We patch sdl_renderer.cpp to add a frame-capture hook for iOS/macOS.
+# The patch lives in our tree; the submodule stays clean.
+# If upstream changes the file, the patch will fail loudly at build time.
+
+set(PATCHED_DIR ${CMAKE_CURRENT_BINARY_DIR}/patched)
+file(MAKE_DIRECTORY ${PATCHED_DIR}/gui/render)
+
+set(SDL_RENDERER_ORIG ${DB}/gui/render/sdl_renderer.cpp)
+set(SDL_RENDERER_PATCHED ${PATCHED_DIR}/gui/render/sdl_renderer.cpp)
+set(SDL_RENDERER_PATCH ${CMAKE_CURRENT_SOURCE_DIR}/patches/sdl_renderer_frame_hook.patch)
+
+add_custom_command(
+    OUTPUT ${SDL_RENDERER_PATCHED}
+    COMMAND ${CMAKE_COMMAND} -E copy ${SDL_RENDERER_ORIG} ${SDL_RENDERER_PATCHED}
+    COMMAND patch -p2 ${SDL_RENDERER_PATCHED} ${SDL_RENDERER_PATCH}
+    DEPENDS ${SDL_RENDERER_ORIG} ${SDL_RENDERER_PATCH}
+    COMMENT "Applying frame-hook patch to sdl_renderer.cpp"
+)
 
 # ============================================================================
 # DOSBox core static library
@@ -238,7 +287,7 @@ add_library(dosbox-core STATIC
     ${DB}/gui/render/deinterlacer.cpp
     ${DB}/gui/render/render.cpp
     ${DB}/gui/render/scaler/scalers.cpp
-    ${DB}/gui/render/sdl_renderer.cpp
+    ${SDL_RENDERER_PATCHED}
 
     # Hardware
     ${DB}/hardware/audio/adlib_gold.cpp
@@ -363,10 +412,9 @@ add_library(dosbox-core STATIC
     ${DB}/misc/unicode_encodings.cpp
     ${DB}/misc/video.cpp
 
-    # Network — ethernet + NE2000 (SLIRP backend stubbed, no libslirp on iOS)
+    # Network — ethernet + NE2000 + SLIRP (static libslirp)
     ${DB}/network/ethernet.cpp
-    # ${DB}/network/ethernet_slirp.cpp  # replaced by stub below
-    ${CONFIG_DIR}/stubs/ethernet_slirp_stub.cpp
+    ${CONFIG_DIR}/ethernet_slirp_static.cpp
     ${CONFIG_DIR}/stubs/webserver_stub.cpp
 
     # Shell
@@ -382,6 +430,39 @@ add_library(dosbox-core STATIC
     # Utils
     ${DB}/utils/env_utils.cpp
     ${DB}/utils/string_utils.cpp
+
+    # libslirp (static, with glib compat shim)
+    ${CONFIG_DIR}/libslirp/arp_table.c
+    ${CONFIG_DIR}/libslirp/bootp.c
+    ${CONFIG_DIR}/libslirp/cksum.c
+    ${CONFIG_DIR}/libslirp/dhcpv6.c
+    ${CONFIG_DIR}/libslirp/dnssearch.c
+    ${CONFIG_DIR}/libslirp/if.c
+    ${CONFIG_DIR}/libslirp/ip_icmp.c
+    ${CONFIG_DIR}/libslirp/ip_input.c
+    ${CONFIG_DIR}/libslirp/ip_output.c
+    ${CONFIG_DIR}/libslirp/ip6_icmp.c
+    ${CONFIG_DIR}/libslirp/ip6_input.c
+    ${CONFIG_DIR}/libslirp/ip6_output.c
+    ${CONFIG_DIR}/libslirp/mbuf.c
+    ${CONFIG_DIR}/libslirp/misc.c
+    ${CONFIG_DIR}/libslirp/ncsi.c
+    ${CONFIG_DIR}/libslirp/ndp_table.c
+    ${CONFIG_DIR}/libslirp/sbuf.c
+    ${CONFIG_DIR}/libslirp/slirp.c
+    ${CONFIG_DIR}/libslirp/socket.c
+    ${CONFIG_DIR}/libslirp/state.c
+    ${CONFIG_DIR}/libslirp/stream.c
+    ${CONFIG_DIR}/libslirp/tcp_input.c
+    ${CONFIG_DIR}/libslirp/tcp_output.c
+    ${CONFIG_DIR}/libslirp/tcp_subr.c
+    ${CONFIG_DIR}/libslirp/tcp_timer.c
+    ${CONFIG_DIR}/libslirp/tftp.c
+    ${CONFIG_DIR}/libslirp/udp.c
+    ${CONFIG_DIR}/libslirp/udp6.c
+    ${CONFIG_DIR}/libslirp/util.c
+    ${CONFIG_DIR}/libslirp/version.c
+    ${CONFIG_DIR}/libslirp/vmstate.c
 )
 
 # Platform-specific exclusions: remove Windows/Linux-only files
@@ -401,6 +482,7 @@ set_source_files_properties(
 target_include_directories(dosbox-core PUBLIC
     ${CONFIG_DIR}                          # dosbox_config.h (ours)
     ${CONFIG_DIR}/stubs                    # stub headers for missing libs
+    ${CONFIG_DIR}/libslirp                 # libslirp headers + glib compat
     ${DB}                                  # dosbox.h and top-level headers
     ${DB}/..                               # for includes like "src/foo.h"
 )
@@ -457,15 +539,16 @@ target_compile_definitions(dosbox-core PRIVATE
 )
 
 # Platform-specific settings
-if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
-    # Fix enet.h clock_gettime conflict on iOS:
+option(MACCATALYST "Building for Mac Catalyst" OFF)
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS" OR MACCATALYST)
+    # Fix enet.h clock_gettime conflict on iOS/Catalyst:
     # enet.h defines its own clock_gettime when __APPLE__ &&
     # __MAC_OS_X_VERSION_MIN_REQUIRED < 101200.  On iOS this macro is
     # undefined (evaluates to 0), triggering the conflict.
     target_compile_definitions(dosbox-core PRIVATE
         __MAC_OS_X_VERSION_MIN_REQUIRED=101500
     )
-    # iOS: no DYNREC — pthread_jit_write_protect_np is macOS-only.
+    # iOS/Catalyst: no DYNREC — pthread_jit_write_protect_np unavailable.
     # Falls back to interpretive core (slower but correct).
     target_compile_definitions(dosbox-core PRIVATE C_DYNREC=0)
 else()
@@ -507,6 +590,7 @@ endif()
 # Link PNG
 if(PNG_FOUND)
     target_link_libraries(dosbox-core PRIVATE PNG::PNG)
+    target_compile_definitions(dosbox-core PRIVATE HAVE_PNG=1)
 endif()
 
 # Link speexdsp
@@ -519,6 +603,8 @@ endif()
 if(IIR_FOUND)
     target_link_libraries(dosbox-core PRIVATE ${IIR_LIBRARIES})
     target_include_directories(dosbox-core PRIVATE ${IIR_INCLUDE_DIRS})
+elseif(IIR_VENDORED)
+    target_link_libraries(dosbox-core PRIVATE iir1)
 endif()
 
 # Apple frameworks (iOS)
@@ -530,6 +616,7 @@ if(APPLE)
         ${COREAUDIO_FW}
         ${AUDIOTOOLBOX_FW}
         ${COREFOUNDATION_FW}
+        resolv  # DNS resolver functions used by libslirp
     )
 endif()
 
@@ -556,6 +643,7 @@ target_compile_options(dosbox-core PRIVATE
 
 add_library(dosbox-bridge STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/dosbox_bridge.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/int_e0_hostio.cpp
 )
 
 target_include_directories(dosbox-bridge PUBLIC

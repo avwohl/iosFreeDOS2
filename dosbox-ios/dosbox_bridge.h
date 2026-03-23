@@ -19,6 +19,7 @@ extern "C" {
 
 typedef struct {
     const char *machine;       /* "svga_s3", "vgaonly", "ega", "cga", etc. */
+    const char *cputype;       /* "auto", "386", "386_fast", "386_prefetch", "486", "pentium", "pentium_mmx" */
     int         cycles;        /* >0=fixed, 0=auto(3000/max), <0=max */
     int         cycles_protected; /* protected mode cycles (0=same as cycles) */
     int         memsize;       /* MB of RAM (default 16) */
@@ -43,6 +44,9 @@ typedef struct {
 
     /* Working directory for DOSBox config files */
     const char *working_dir;
+
+    /* Host file I/O root for R.COM/W.COM (e.g., app Documents dir) */
+    const char *host_dir;
 
     /* Boot drive: 0=A, 0x80=C, 0xE0=CD-ROM (default: auto-detect) */
     int         boot_drive;

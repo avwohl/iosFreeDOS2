@@ -48,6 +48,7 @@ typedef NS_ENUM(NSInteger, DOSSpeedMode) {
 
 // Configuration (call before start)
 - (void)setMachineType:(DOSMachineType)type;
+- (void)setCpuType:(NSString*)cpuType;
 - (void)setMemoryMB:(int)mb;
 - (void)setMouseEnabled:(BOOL)enabled;
 - (void)setSpeakerEnabled:(BOOL)enabled;
@@ -70,7 +71,10 @@ typedef NS_ENUM(NSInteger, DOSSpeedMode) {
 // Input
 - (void)sendCharacter:(unichar)ch;
 - (void)sendScancode:(uint8_t)ascii scancode:(uint8_t)scancode;
+- (void)sendScancodePress:(uint8_t)scancode;
+- (void)sendScancodeRelease:(uint8_t)scancode;
 - (void)updateMouseX:(int)x y:(int)y buttons:(int)buttons;
+- (void)updateMouseDX:(int)dx dy:(int)dy buttons:(int)buttons;
 
 // Speed
 - (void)setSpeed:(DOSSpeedMode)mode;

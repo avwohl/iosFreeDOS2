@@ -32,15 +32,22 @@ static int drive_index(int drive) {
 // Frame callback (C trampoline → Objective-C delegate)
 //=============================================================================
 
+// Frame coalescing: drop frames if main thread hasn't consumed the previous one
+static std::atomic<bool> s_frame_pending{false};
+
 static void frame_callback(const uint8_t *pixels, int width, int height, void *ctx)
 {
+    if (s_frame_pending.load(std::memory_order_relaxed)) return;
+
     DOSEmulator *emu = (__bridge DOSEmulator *)ctx;
     id<DOSEmulatorDelegate> d = emu.delegate;
     if (d && [d respondsToSelector:@selector(emulatorFrameReady:width:height:)]) {
         NSData *data = [NSData dataWithBytes:pixels length:width * height * 4];
         int w = width, h = height;
+        s_frame_pending.store(true, std::memory_order_relaxed);
         dispatch_async(dispatch_get_main_queue(), ^{
             [d emulatorFrameReady:data width:w height:h];
+            s_frame_pending.store(false, std::memory_order_relaxed);
         });
     }
 }
@@ -70,6 +77,7 @@ static void frame_callback(const uint8_t *pixels, int width, int height, void *c
     BOOL _sbEnabled;
     DOSSpeedMode _speedMode;
     int _customCycles;
+    NSString *_cpuType;
 
     dispatch_queue_t _emulatorQueue;
     BOOL _shouldRun;
@@ -92,6 +100,7 @@ static void frame_callback(const uint8_t *pixels, int width, int height, void *c
         _sbEnabled = YES;
         _speedMode = DOSSpeedMax;
         _customCycles = 0;
+        _cpuType = @"auto";
         _emulatorQueue = dispatch_queue_create("com.iosFreeDOS.dosbox", DISPATCH_QUEUE_SERIAL);
         _shouldRun = NO;
 
@@ -114,6 +123,7 @@ static void frame_callback(const uint8_t *pixels, int width, int height, void *c
 #pragma mark - Configuration
 
 - (void)setMachineType:(DOSMachineType)type { _machineType = type; }
+- (void)setCpuType:(NSString*)cpuType { _cpuType = [cpuType copy]; }
 - (void)setMemoryMB:(int)mb { _memoryMB = mb; }
 - (void)setMouseEnabled:(BOOL)enabled { _mouseEnabled = enabled; }
 - (void)setSpeakerEnabled:(BOOL)enabled { _speakerEnabled = enabled; }
@@ -222,6 +232,7 @@ static void frame_callback(const uint8_t *pixels, int width, int height, void *c
         case DOSMachineSVGA:     cfg.machine = "svga_s3"; break;
     }
 
+    cfg.cputype = [_cpuType UTF8String];
     cfg.memsize = _memoryMB;
     cfg.sb_enabled = _sbEnabled ? 1 : 0;
     cfg.speaker_enabled = _speakerEnabled ? 1 : 0;
@@ -247,6 +258,11 @@ static void frame_callback(const uint8_t *pixels, int width, int height, void *c
 
     cfg.working_dir = [_tmpDir UTF8String];
 
+    // Host file I/O root for R.COM/W.COM — app's Documents directory
+    NSString *docsDir = NSSearchPathForDirectoriesInDomains(
+        NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+    cfg.host_dir = docsDir ? [docsDir UTF8String] : nullptr;
+
     // Boot drive — FreeDOS kernel on the disk handles CONFIG.SYS and AUTOEXEC.BAT
     cfg.boot_drive = drive;
 
@@ -261,6 +277,7 @@ static void frame_callback(const uint8_t *pixels, int width, int height, void *c
     dispatch_async(_emulatorQueue, ^{
         dosbox_run();
         self->_shouldRun = NO;
+        // Notify delegate on main thread
         dispatch_async(dispatch_get_main_queue(), ^{
             id<DOSEmulatorDelegate> d = self.delegate;
             if (d && [d respondsToSelector:@selector(emulatorDidExit)]) {
@@ -383,8 +400,22 @@ static int pc_to_sdl_scancode(uint8_t pc) {
     (void)ascii;
 }
 
+- (void)sendScancodePress:(uint8_t)scancode {
+    int sdl_sc = pc_to_sdl_scancode(scancode);
+    dosbox_inject_key(sdl_sc, 1);
+}
+
+- (void)sendScancodeRelease:(uint8_t)scancode {
+    int sdl_sc = pc_to_sdl_scancode(scancode);
+    dosbox_inject_key(sdl_sc, 0);
+}
+
 - (void)updateMouseX:(int)x y:(int)y buttons:(int)buttons {
     dosbox_inject_mouse_abs(x, y, buttons);
+}
+
+- (void)updateMouseDX:(int)dx dy:(int)dy buttons:(int)buttons {
+    dosbox_inject_mouse(dx, dy, buttons);
 }
 
 #pragma mark - Speed

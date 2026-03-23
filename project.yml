@@ -8,6 +8,10 @@ settings:
   base:
     CLANG_CXX_LANGUAGE_STANDARD: c++20
     SUPPORTS_MACCATALYST: YES
+packages:
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation
+    from: "0.9.19"
 targets:
   iosFreeDOS:
     type: application
@@ -17,6 +21,11 @@ targets:
     configFiles:
       Debug: Config.xcconfig
       Release: Config.xcconfig
+    entitlements:
+      path: iosFreeDOS/iosFreeDOS.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
     settings:
       base:
         SWIFT_OBJC_BRIDGING_HEADER: iosFreeDOS/iosFreeDOS-Bridging-Header.h
@@ -25,9 +34,7 @@ targets:
         HEADER_SEARCH_PATHS:
           - $(SRCROOT)/dosbox-ios
           - $(SRCROOT)/iosFreeDOS/Bridge
-        LIBRARY_SEARCH_PATHS:
-          - $(SRCROOT)/build-ios
-          - $(SRCROOT)/dosbox-ios/vcpkg_installed/arm64-ios/lib
+        LIBRARY_SEARCH_PATHS: $(inherited)
         OTHER_LDFLAGS:
           - -ldosbox-bridge
           - -ldosbox-core
@@ -40,15 +47,11 @@ targets:
           - -lwhereami
           - -lym7128b
           - -lzmbv
+          - -liir1
           - -lSDL2
           - -lSDL2main
           - -lSDL2_image
-          - -lpng16
           - -lspeexdsp
-          - -liir_static
-          - -lopusfile
-          - -lopus
-          - -logg
           - -lz
           - -framework CoreAudio
           - -framework AudioToolbox
@@ -60,31 +63,70 @@ targets:
           - -framework CoreMotion
           - -framework Foundation
           - -framework Metal
-          - -weak_framework OpenGLES
           - -framework QuartzCore
           - -framework UIKit
           - -weak_framework GameController
           - -weak_framework CoreHaptics
+          - -lresolv
+        "OTHER_LDFLAGS[sdk=iphoneos*]":
+          - $(inherited)
+          - -lpng16
+          - -lopusfile
+          - -lopus
+          - -logg
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown
         INFOPLIST_KEY_UIRequiresFullScreen: NO
-        MARKETING_VERSION: "2.0"
-        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: 27
         PRODUCT_BUNDLE_IDENTIFIER: com.awohl.FreeDOS
         INFOPLIST_KEY_CFBundleDisplayName: FreeDOS
+        INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.utilities"
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: "FreeDOS uses Bluetooth to connect game controllers and keyboards."
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         GENERATE_INFOPLIST_FILE: YES
-    dependencies: []
+    dependencies:
+      - package: ZIPFoundation
     preBuildScripts:
       - name: Build DOSBox Core
         script: |
-          if [ ! -f "${SRCROOT}/build-ios/libdosbox-core.a" ]; then
-            echo "error: libdosbox-core.a not found. Run: cd build-ios && cmake ../dosbox-ios -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=arm64-ios -DVCPKG_INSTALLED_DIR=${SRCROOT}/dosbox-ios/vcpkg_installed && cmake --build . -j$(sysctl -n hw.ncpu)"
-            exit 1
+          set -e
+          export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+          JOBS=$(sysctl -n hw.ncpu)
+
+          if [ "$PLATFORM_NAME" = "macosx" ] || [ "$IS_MACCATALYST" = "YES" ]; then
+            # Mac Catalyst: build both architectures and lipo
+            ARM64_DIR="${SRCROOT}/build-maccatalyst-arm64"
+            X86_DIR="${SRCROOT}/build-maccatalyst-x86_64"
+            UNIVERSAL_DIR="${SRCROOT}/build-maccatalyst"
+
+            if [ ! -f "$ARM64_DIR/CMakeCache.txt" ] || [ ! -f "$X86_DIR/CMakeCache.txt" ]; then
+              echo "error: Run scripts/build_maccatalyst_universal.sh first to configure both architectures."
+              exit 1
+            fi
+
+            cmake --build "$ARM64_DIR" -j"$JOBS" --target dosbox-core dosbox-bridge 2>&1
+            cmake --build "$X86_DIR"   -j"$JOBS" --target dosbox-core dosbox-bridge 2>&1
+
+            mkdir -p "$UNIVERSAL_DIR"
+            for lib in "$ARM64_DIR"/*.a; do
+              name=$(basename "$lib")
+              x86_lib="$X86_DIR/$name"
+              if [ -f "$x86_lib" ]; then
+                lipo -create "$lib" "$x86_lib" -output "$UNIVERSAL_DIR/$name"
+              else
+                cp "$lib" "$UNIVERSAL_DIR/$name"
+              fi
+            done
+          else
+            # iOS device
+            BUILD_DIR="${SRCROOT}/build-ios"
+            if [ ! -f "$BUILD_DIR/CMakeCache.txt" ]; then
+              echo "error: CMake not configured. Run cmake in $BUILD_DIR first (see README)."
+              exit 1
+            fi
+            cmake --build "$BUILD_DIR" -j"$JOBS" --target dosbox-core dosbox-bridge 2>&1
           fi
-        inputFiles:
-          - $(SRCROOT)/dosbox-ios/CMakeLists.txt
-        outputFiles:
-          - $(SRCROOT)/build-ios/libdosbox-core.a
+        basedOnDependencyAnalysis: false
         showEnvVars: false

@@ -1,6 +1,6 @@
 #!/bin/bash
-# Build a small (~22MB) bootable FreeDOS starter disk with DOOM + Duke Nukem
-# Minimal system + CWSDPMI + two classic games. Friendly for cellular downloads.
+# Build a small (~22MB) bootable FreeDOS starter disk.
+# Minimal system with CWSDPMI and essential utilities.
 
 set -e
 
@@ -25,7 +25,7 @@ find_iso() {
   done
 }
 
-LIVEISO=$(find_iso "FD14LIVE.iso")
+LIVEISO=$(find_iso "FD14LIVE.iso" || true)
 echo "LiveCD ISO:  ${LIVEISO:-not found}"
 
 # Geometry: 16 heads, 63 sectors/track
@@ -174,39 +174,13 @@ fi
 # =========================================================================
 # 6. Configuration
 # =========================================================================
-cat > /tmp/FDCONFIG.SYS << 'CFGEOF'
-LASTDRIVE=Z
-FILES=40
-BUFFERS=20
-DOS=HIGH
-SHELL=C:\COMMAND.COM C:\ /E:1024 /P
-CFGEOF
+printf 'LASTDRIVE=Z\r\nFILES=40\r\nBUFFERS=20\r\nDOS=HIGH\r\nSHELL=C:\\COMMAND.COM C:\\ /E:1024 /P\r\n' > /tmp/FDCONFIG.SYS
 mcopy -D o /tmp/FDCONFIG.SYS c:
 
-cat > /tmp/AUTOEXEC.BAT << 'BATEOF'
-@ECHO OFF
-SET DOSDIR=C:\FREEDOS
-SET PATH=C:\FREEDOS\BIN;C:\DOOM;C:\DUKE
-SET NLSPATH=C:\FREEDOS\NLS
-SET TEMP=C:\TEMP
-SET DIRCMD=/OGN
-PROMPT $P$G
-IF NOT EXIST C:\TEMP\NUL MD C:\TEMP
-C:\FREEDOS\BIN\CWSDPMI -p
-ECHO.
-ECHO Type DOOM to play DOOM (VGA), or DUKE to play Duke Nukem (EGA).
-ECHO.
-BATEOF
+printf '@ECHO OFF\r\nSET DOSDIR=C:\\FREEDOS\r\nSET PATH=C:\\FREEDOS\\BIN;C:\\NET\r\nSET NLSPATH=C:\\FREEDOS\\NLS\r\nSET TEMP=C:\\TEMP\r\nSET DIRCMD=/ON\r\nSET MTCPCFG=C:\\NET\\MTCP.CFG\r\nIF NOT EXIST C:\\TEMP\\NUL MD C:\\TEMP\r\nECHO.\r\nECHO FreeDOS ready. Type HELP for commands, EDIT to edit files.\r\nECHO Type NET to start networking (FTP, TELNET, PING).\r\nECHO.\r\n' > /tmp/AUTOEXEC.BAT
 mcopy -D o /tmp/AUTOEXEC.BAT c:
 
 mmd c:/TEMP 2>/dev/null || true
-
-# Install R.COM and W.COM
-if [ -f "$IMGDIR/dos/r.com" ]; then
-    mcopy -D o "$IMGDIR/dos/r.com" "c:/FREEDOS/BIN/R.COM"
-    mcopy -D o "$IMGDIR/dos/w.com" "c:/FREEDOS/BIN/W.COM"
-    echo "Installed R.COM and W.COM"
-fi
 
 # Install DPMITEST.COM
 if [ -f "$IMGDIR/dos/dpmitest.com" ]; then
@@ -214,62 +188,41 @@ if [ -f "$IMGDIR/dos/dpmitest.com" ]; then
     echo "Installed DPMITEST.COM"
 fi
 
-# =========================================================================
-# 7. Install DOOM shareware
-# =========================================================================
-echo "Installing DOOM shareware..."
-mmd c:/DOOM 2>/dev/null || true
-
-DOOM_DIR=""
-# Check for pre-extracted DOOM files
-for dir in /tmp/doom_sw "$IMGDIR/fd/doom"; do
-  if [ -f "$dir/DOOM.EXE" ] && [ -f "$dir/DOOM1.WAD" ]; then
-    DOOM_DIR="$dir"
-    break
-  fi
+# Install R.COM and W.COM (host file transfer)
+for f in r.com w.com; do
+    if [ -f "$IMGDIR/dos/$f" ]; then
+        upper=$(echo "$f" | tr '[:lower:]' '[:upper:]')
+        mcopy -D o "$IMGDIR/dos/$f" "c:/FREEDOS/BIN/$upper"
+        echo "Installed $upper"
+    fi
 done
 
-if [ -n "$DOOM_DIR" ]; then
-  mcopy -D o "$DOOM_DIR/DOOM.EXE" c:/DOOM/
-  mcopy -D o "$DOOM_DIR/DOOM1.WAD" c:/DOOM/
-  mcopy -D o "$DOOM_DIR/DEFAULT.CFG" c:/DOOM/ 2>/dev/null || true
-  echo "  DOOM installed from $DOOM_DIR"
-else
-  echo "  WARNING: DOOM files not found - download doom shareware to /tmp/doom_sw/"
-fi
-
 # =========================================================================
-# 8. Install Duke Nukem 1
+# Install networking tools (NE2000 packet driver + mTCP)
 # =========================================================================
-echo "Installing Duke Nukem 1..."
-mmd c:/DUKE 2>/dev/null || true
-
-DUKE_DIR=""
-for dir in "$IMGDIR/fd/games/duke1" "$IMGDIR/fd/duke1"; do
-  if [ -d "$dir" ]; then
-    DUKE_DIR="$dir"
-    break
-  fi
-done
-
-if [ -n "$DUKE_DIR" ]; then
-  for f in "$DUKE_DIR"/*; do
-    [ -f "$f" ] && mcopy -D o "$f" "c:/DUKE/$(basename "$f" | tr '[:lower:]' '[:upper:]')" 2>/dev/null || true
-  done
-  # Copy from subdirectories too
-  for d in "$DUKE_DIR"/*/; do
-    [ -d "$d" ] || continue
-    for f in "$d"*; do
-      [ -f "$f" ] && mcopy -D o "$f" "c:/DUKE/$(basename "$f" | tr '[:lower:]' '[:upper:]')" 2>/dev/null || true
+if [ -d "$IMGDIR/dos/net" ]; then
+    echo "Installing networking tools..."
+    mmd c:/NET 2>/dev/null || true
+    for f in NE2000.COM DHCP.EXE FTP.EXE TELNET.EXE PING.EXE HTGET.EXE \
+             MTCP.CFG NET.BAT COPYING.TXT; do
+        if [ -f "$IMGDIR/dos/net/$f" ]; then
+            case "$f" in
+                *.BAT|*.CFG|*.TXT)
+                    # Ensure DOS line endings (CR+LF) for text files
+                    sed 's/\r$//' "$IMGDIR/dos/net/$f" | sed 's/$/'$'\r''/' > "/tmp/$f"
+                    mcopy -D o "/tmp/$f" "c:/NET/$f"
+                    ;;
+                *)
+                    mcopy -D o "$IMGDIR/dos/net/$f" "c:/NET/$f"
+                    ;;
+            esac
+        fi
     done
-  done
-  echo "  Duke Nukem installed from $DUKE_DIR"
-else
-  echo "  WARNING: Duke Nukem files not found"
+    echo "  Installed NE2000.COM, mTCP (FTP, TELNET, PING, HTGET, DHCP)"
 fi
 
 # =========================================================================
-# 9. Boot sector
+# 7. Boot sector
 # =========================================================================
 dd if="$SRCIMG" of=/tmp/floppy_boot.bin bs=512 count=1 2>/dev/null
 
@@ -319,3 +272,69 @@ mdir c: 2>/dev/null || echo "(mdir failed)"
 echo ""
 echo "Free space:"
 minfo c: 2>/dev/null | grep -i "free\|total" || true
+
+# =========================================================================
+# 8. Catalog consistency check
+# =========================================================================
+echo ""
+echo "--- Catalog consistency check ---"
+WARNINGS=0
+
+RELEASE_XML="$IMGDIR/release_assets/disks.xml"
+BUNDLED_XML="$IMGDIR/iosFreeDOS/Resources/disks.xml"
+DISK_NAME=$(basename "$OUTIMG")
+ACTUAL_SIZE=$(stat -f%z "$OUTIMG")
+ACTUAL_SHA=$(shasum -a 256 "$OUTIMG" | awk '{print $1}')
+
+check_xml() {
+  local label="$1" xmlfile="$2"
+  if [ ! -f "$xmlfile" ]; then
+    echo "  WARNING: $label not found: $xmlfile"
+    WARNINGS=$((WARNINGS + 1))
+    return
+  fi
+  eval "$(python3 -c "
+import xml.etree.ElementTree as ET, sys
+tree = ET.parse('$xmlfile')
+for d in tree.findall('disk'):
+    if d.findtext('filename') == '$DISK_NAME':
+        print('xml_size=' + (d.findtext('size') or ''))
+        print('xml_sha=' + (d.findtext('sha256') or ''))
+        sys.exit(0)
+print('xml_size='); print('xml_sha=')
+")"
+  if [ -z "$xml_size" ]; then
+    echo "  WARNING: $DISK_NAME not found in $label"
+    WARNINGS=$((WARNINGS + 1))
+  elif [ "$xml_size" != "$ACTUAL_SIZE" ]; then
+    echo "  WARNING: $label size mismatch: xml=$xml_size actual=$ACTUAL_SIZE"
+    WARNINGS=$((WARNINGS + 1))
+  fi
+  if [ -n "$xml_sha" ] && [ "$xml_sha" != "$ACTUAL_SHA" ]; then
+    echo "  WARNING: $label sha256 mismatch"
+    echo "    xml:    $xml_sha"
+    echo "    actual: $ACTUAL_SHA"
+    WARNINGS=$((WARNINGS + 1))
+  elif [ -z "$xml_sha" ]; then
+    echo "  WARNING: $label has empty sha256 for $DISK_NAME"
+    WARNINGS=$((WARNINGS + 1))
+  fi
+}
+
+check_xml "release_assets/disks.xml" "$RELEASE_XML"
+check_xml "Resources/disks.xml" "$BUNDLED_XML"
+
+if [ -f "$RELEASE_XML" ] && [ -f "$BUNDLED_XML" ]; then
+  if ! diff -q "$RELEASE_XML" "$BUNDLED_XML" > /dev/null 2>&1; then
+    echo "  WARNING: release_assets/disks.xml and Resources/disks.xml differ"
+    WARNINGS=$((WARNINGS + 1))
+  fi
+fi
+
+if [ "$WARNINGS" -eq 0 ]; then
+  echo "  All checks passed."
+else
+  echo ""
+  echo "  $WARNINGS warning(s). Update disks.xml files to match the new disk image."
+  echo "  Actual size: $ACTUAL_SIZE  sha256: $ACTUAL_SHA"
+fi

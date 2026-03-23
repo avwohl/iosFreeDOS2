@@ -1,11 +1,19 @@
 # Software Rights and Licensing
 
-This document describes the licensing and legal status of all software
-distributed with iosFreeDOS.
+This document describes the licensing and legal status of software
+distributed with FreeDOS for iOS/Mac.
+
+## DOSBox Staging
+
+The emulator core is DOSBox Staging, a modernized fork of DOSBox.
+
+- **License:** GNU General Public License (GPL) v2+
+- **Website:** https://dosbox-staging.github.io/
+- **Source:** https://github.com/dosbox-staging/dosbox-staging
 
 ## FreeDOS
 
-FreeDOS is the operating system used by iosFreeDOS.
+FreeDOS is the operating system included in the bootable disk images.
 
 - **License:** GNU General Public License (GPL) v2+
 - **Copyright:** Copyright 1995-2012 Pasquale J. Villani and The FreeDOS Project
@@ -15,119 +23,57 @@ FreeDOS is the operating system used by iosFreeDOS.
   - FreeDOS Kernel 2043 (GPL v2+)
   - FreeCom 0.86 (COMMAND.COM) (GPL v2+)
   - FreeDOS utilities (various GPL/BSD licenses)
-- **Distribution terms:** "This is free software and comes with ABSOLUTELY NO
-  WARRANTY; you can redistribute it and/or modify it under the terms of the
-  GNU General Public License as published by the Free Software Foundation;
-  either version 2, or (at your option) any later version."
 
----
+## libslirp
 
-## Bundled Games
+Userspace TCP/IP stack providing NE2000 networking (NAT).
 
-All games included with iosFreeDOS are confirmed freeware or freely distributable
-shareware, released by their original rights holders for free distribution. No
-abandonware or unauthorized copies are included.
+- **License:** BSD 3-Clause
+- **Version:** 4.7.0
+- **Source:** https://gitlab.freedesktop.org/slirp/libslirp
 
-### Apogee / 3D Realms Freeware
+## mTCP
 
-#### Duke Nukem 1 (Episodes 1-3)
-- **Year:** 1991
-- **Developer:** Apogee Software (Todd Replogle)
-- **License:** Freeware, released by Apogee/3D Realms on December 23, 2005
-- **Reference:** https://legacy.3drealms.com/duke1/index.html
+TCP/IP applications for DOS: FTP, Telnet, DHCP, Ping, HTGET.
+Included on the default FreeDOS disk in `C:\NET`.
 
-#### Bio Menace (Episodes 1-3)
-- **Year:** 1993
-- **Developer:** Apogee Software
-- **License:** Freeware, released by Apogee/3D Realms on December 23, 2005
-- **Reference:** https://en.wikipedia.org/wiki/Bio_Menace
+- **License:** GNU General Public License (GPL) v3
+- **Author:** Michael Brutman
+- **Website:** https://www.brutman.com/mTCP/
 
-#### Major Stryker (Full game)
-- **Year:** 1993
-- **Developer:** Apogee Software
-- **License:** Freeware, released by Apogee on March 14, 2006
-- **Reference:** https://archive.org/details/strykerfw
+## NE2000 Packet Driver
 
-#### Kingdom of Kroz
-- **Year:** 1987-1990
-- **Developer:** Apogee Software (Scott Miller)
-- **License:** Freeware, released by Apogee/3D Realms on March 20, 2009
-- **Reference:** https://en.wikipedia.org/wiki/Kingdom_of_Kroz
+Crynwr NE2000 packet driver for DOS (NE2000.COM).
+Included on the default FreeDOS disk in `C:\NET`.
 
-#### Dark Ages (Episodes 1-3)
-- **Year:** 1991
-- **Developer:** Apogee Software (Todd Replogle)
-- **License:** Freeware, released by Apogee/3D Realms on March 20, 2009
+- **License:** Open Source (Crynwr Software)
+- **Source:** http://crynwr.com/drivers/
 
-#### Alien Carnage / Halloween Harry (Episodes 1-4)
-- **Year:** 1993
-- **Developer:** Interactive Binary Illusions / SubZero Software
-- **Publisher:** Apogee Software
-- **License:** Freeware, released by John Passfield and 3D Realms in May 2007
-- **Reference:** https://en.wikipedia.org/wiki/Alien_Carnage
+## Disk Catalog — External Downloads
 
-### Epic MegaGames Freeware
+The disk catalog links to external archives hosted by third parties.
+These files are not bundled with the app; they are downloaded by the
+user on demand.
 
-#### Jill of the Jungle (Complete Trilogy)
-- **Year:** 1992
-- **Developer:** Epic MegaGames (Tim Sweeney)
-- **License:** Freeware, released for free on GOG.com by Epic Games in November 2018
-- **Reference:** https://www.pcgamer.com/ms-dos-platforming-trilogy-jill-of-the-jungle-is-now-free-on-gog/
+### FreeDOS Official ISOs
+- **Source:** freedos.org / ibiblio.org
+- **License:** GPL v2+
 
-#### Xargon (Volumes 1-3)
-- **Year:** 1993
-- **Developer:** Epic MegaGames (Allen Pilgrim)
-- **License:** Freeware, released by author Allen Pilgrim on August 4, 2008. Source code also released.
-- **Reference:** https://en.wikipedia.org/wiki/Xargon
+### Simtel MS-DOS Archive
+- **Source:** archive.org
+- **License:** Shareware / Public Domain collection
+- **Contents:** Thousands of MS-DOS utilities, tools, and shareware
+  from the Simtel mirror network (1990s)
 
-#### Kiloblaster
-- **Year:** 1992
-- **Developer:** Epic MegaGames (Allen Pilgrim)
-- **License:** Shareware (freely distributable)
-- **Reference:** https://en.wikipedia.org/wiki/Kiloblaster
+### Walnut Creek CD-ROMs
+- **Source:** archive.org
+- **License:** Shareware / Public Domain collection
+- **Contents:** Curated DOS software collections from Walnut Creek
+  CDROM (founded 1991)
 
-### Other Freeware / Shareware
+## ZIPFoundation
 
-#### SkyRoads
-- **Year:** 1993
-- **Developer:** BlueMoon Interactive (Estonia)
-- **License:** Freeware, released by BlueMoon Software
-- **Reference:** https://en.wikipedia.org/wiki/SkyRoads_(video_game)
+Used for extracting downloaded ZIP archives.
 
-#### Supaplex
-- **Year:** 1991
-- **Developer:** Think!Ware / Digital Integration
-- **License:** Freeware, released by Digital Integration
-- **Reference:** https://www.dosgamesarchive.com/download/supaplex/
-
-#### God of Thunder (Episodes 1-3)
-- **Year:** 1993
-- **Developer:** Adept Software (Ron Davis)
-- **License:** Freeware, released by creator Ron Davis circa 2002. Source code also released.
-- **Reference:** https://www.adeptsoftware.com/got/
-
-#### Liero
-- **Year:** 1998
-- **Developer:** MetsänEläimet (Joosa Riekkinen)
-- **License:** Freeware v1.33
-- **Reference:** https://en.wikipedia.org/wiki/Liero
-
----
-
-## Games NOT Included (and why)
-
-### Excluded - Require Protected Mode (incompatible with real-mode emulator)
-
-- **DOOM** (1993): Requires DOS4GW protected mode extender
-- **Tyrian 2000** (1995): Freeware, but requires DOS extender
-- **One Must Fall: 2097** (1994): Freeware, but requires 4MB RAM + protected mode
-- **Cosmo's Cosmic Adventure** (1992): Real mode, but needs 528K+ (507K available)
-- **Traffic Department 2192** (1994): Real mode, but needs more memory than available
-
-### Excluded - Licensing Concerns
-
-- **Elder Scrolls: Arena / Daggerfall:** Requires protected mode. Rights held by Bethesda/Microsoft.
-- **Crystal Caves / Secret Agent (full registered versions):** Still commercially sold on Steam/GOG. Shareware Episode 1 freely distributable.
-- **Raptor: Call of the Shadows:** Still commercially sold.
-- **Grand Theft Auto 1:** Free download discontinued. Take-Two is litigious.
-- **Any "abandonware":** No legal standing for redistribution.
+- **License:** MIT License
+- **Source:** https://github.com/weichsel/ZIPFoundation

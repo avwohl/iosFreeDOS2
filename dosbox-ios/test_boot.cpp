@@ -116,6 +116,10 @@ int main(int argc, char *argv[])
     cfg.hdd_d_path = hdd_d_path;
     cfg.floppy_a_path = floppy_path;
     cfg.working_dir = workdir;
+    cfg.host_dir = "/tmp/dosbox-hostio";  // test harness host file dir
+    mkdir("/tmp/dosbox-hostio", 0755);
+
+    cfg.autoexec = nullptr;
 
     fprintf(stderr, "Starting DOSBox...\n");
     fprintf(stderr, "  HDD C: %s\n", hdd_path ? hdd_path : "(none)");

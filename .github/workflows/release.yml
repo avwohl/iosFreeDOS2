@@ -54,23 +54,11 @@ jobs:
             https://www.awohl.com/freedos/FD14BNS.iso
           ls -lh fd/*.iso
 
-      - name: Download DOOM shareware
-        run: |
-          mkdir -p /tmp/doom_sw
-          # Original: https://archive.org/download/DoomsharewareEpisode/doom.ZIP
-          curl -L --retry 3 --connect-timeout 30 -o /tmp/doom_sw.zip \
-            https://www.awohl.com/freedos/doom.ZIP
-          cd /tmp/doom_sw && unzip -o /tmp/doom_sw.zip
-          ls -lh /tmp/doom_sw/DOOM.EXE /tmp/doom_sw/DOOM1.WAD
-
       - name: Build starter disk image
         run: scripts/build_starter_disk.sh
 
       - name: Build hard disk image
         run: scripts/build_hdd.sh
-
-      - name: Build games disk image
-        run: scripts/build_games_disk.sh
 
       - name: Update disk catalog SHA256 from built images
         run: |
@@ -80,7 +68,6 @@ jobs:
           disks = {
             "freedos_starter.img": "fd/freedos_starter.img",
             "freedos_hd.img": "fd/freedos_hd.img",
-            "freedos_games.img": "fd/freedos_games.img",
           }
 
           xml_path = "release_assets/disks.xml"
@@ -107,7 +94,7 @@ jobs:
       - name: Verify disk catalog SHA256
         run: |
           fail=0
-          for img in fd/freedos_starter.img fd/freedos_hd.img fd/freedos_games.img; do
+          for img in fd/freedos_starter.img fd/freedos_hd.img; do
             [ -f "$img" ] || continue
             fname=$(basename "$img")
             actual=$(shasum -a 256 "$img" | cut -d' ' -f1)
@@ -122,6 +109,14 @@ jobs:
             fi
           done
           [ $fail -eq 0 ] || exit 1
+
+      - name: Sync bundled catalog
+        run: |
+          cp release_assets/disks.xml iosFreeDOS/Resources/disks.xml
+          if ! diff -q release_assets/disks.xml iosFreeDOS/Resources/disks.xml; then
+            echo "FAIL: bundled disks.xml out of sync"
+            exit 1
+          fi
 
       - name: Collect release assets
         run: |
@@ -140,12 +135,6 @@ jobs:
           cp fd/freedos_starter.img dist/
           if [ -f fd/freedos_hd.img ]; then
             cp fd/freedos_hd.img dist/
-          fi
-          if [ -f fd/freedos_games.img ]; then
-            cp fd/freedos_games.img dist/
-          fi
-          if [ -d fd/games ]; then
-            tar czf dist/shareware-games.tar.gz -C fd games GAMES.TXT
           fi
           # Generate checksums
           cd dist && shasum -a 256 * > SHA256SUMS

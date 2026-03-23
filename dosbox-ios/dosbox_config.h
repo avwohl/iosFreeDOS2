@@ -16,11 +16,20 @@
 // We don't define MACOSX because some code paths assume desktop macOS
 // #define MACOSX
 
-// CPU and FPU emulation
+// CPU and FPU emulation — detect at compile time for universal builds
+#if defined(__arm64__) || defined(__aarch64__)
 #define C_TARGET_CPU_ARM  1
 #define C_TARGET_CPU_X86  0
 #define C_UNALIGNED_MEMORY 0  // ARM needs aligned access
 #define C_PER_PAGE_W_OR_X 1  // Apple Silicon requires W^X
+#elif defined(__x86_64__)
+#define C_TARGET_CPU_ARM  0
+#define C_TARGET_CPU_X86  1
+#define C_UNALIGNED_MEMORY 1
+#define C_PER_PAGE_W_OR_X 0
+#else
+#error "Unsupported architecture"
+#endif
 
 // Dynamic recompiler
 // On macOS: DYNREC=1 with pthread_jit_write_protect_np (macOS 11+)
@@ -61,15 +70,18 @@
 #define HAVE_FD_ZERO
 #define HAVE_CLOCK_GETTIME
 #define HAVE_BUILTIN_AVAILABLE
-// Use sys_icache_invalidate on iOS instead of __builtin___clear_cache
-// (the builtin emits ___clear_cache which isn't in the iOS runtime)
-// #define HAVE_BUILTIN_CLEAR_CACHE
+// On ARM: use sys_icache_invalidate (the builtin emits ___clear_cache
+// which isn't in the iOS runtime).  On x86_64: use __builtin___clear_cache.
+#if defined(__arm64__) || defined(__aarch64__)
+#define HAVE_SYS_ICACHE_INVALIDATE
+#else
+#define HAVE_BUILTIN_CLEAR_CACHE
+#endif
 #define HAVE_MPROTECT
 #define HAVE_MMAP
 #define HAVE_MAP_JIT
 // pthread_jit_write_protect_np: macOS 11+ only (unavailable on iOS)
 // HAVE_PTHREAD_WRITE_PROTECT_NP defined by CMakeLists.txt for macOS only
-#define HAVE_SYS_ICACHE_INVALIDATE
 #define HAVE_PTHREAD_SETNAME_NP
 #define HAVE_SETPRIORITY
 #define HAVE_STRNLEN

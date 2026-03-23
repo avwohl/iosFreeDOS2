@@ -22,6 +22,10 @@ struct MachineConfig: Codable, Identifiable, Equatable {
     // Custom cycle count (when speedMode == 5)
     var customCycles: Int = 10000
 
+    // CPU type (DOSBox cputype setting)
+    // "auto", "386", "386_fast", "386_prefetch", "486", "pentium", "pentium_mmx"
+    var cpuTypeStr: String = "auto"
+
     // RAM in MB
     var memoryMB: Int = 16
 
@@ -31,6 +35,10 @@ struct MachineConfig: Codable, Identifiable, Equatable {
 
     // Input
     var mouseEnabled: Bool = true
+
+    // Touch controls
+    var touchLayoutId: UUID? = nil
+    var touchLayoutName: String? = nil
 
     // Disks
     var floppyAFilename: String?
@@ -88,8 +96,9 @@ struct MachineConfig: Codable, Identifiable, Equatable {
 
     // Coding keys for backward compatibility
     enum CodingKeys: String, CodingKey {
-        case id, name, machineType, speedMode, customCycles, memoryMB
+        case id, name, machineType, speedMode, customCycles, cpuTypeStr, memoryMB
         case speakerEnabled, sbEnabled, mouseEnabled
+        case touchLayoutId, touchLayoutName
         case floppyAFilename, floppyBFilename, hddCFilename, hddDFilename
         case bootDrive
         // Legacy keys we can decode
@@ -116,6 +125,7 @@ struct MachineConfig: Codable, Identifiable, Equatable {
 
         speedMode = try c.decodeIfPresent(Int.self, forKey: .speedMode) ?? 0
         customCycles = try c.decodeIfPresent(Int.self, forKey: .customCycles) ?? 10000
+        cpuTypeStr = try c.decodeIfPresent(String.self, forKey: .cpuTypeStr) ?? "auto"
         memoryMB = try c.decodeIfPresent(Int.self, forKey: .memoryMB) ?? 16
         speakerEnabled = try c.decodeIfPresent(Bool.self, forKey: .speakerEnabled) ?? true
         mouseEnabled = try c.decodeIfPresent(Bool.self, forKey: .mouseEnabled) ?? true
@@ -125,6 +135,9 @@ struct MachineConfig: Codable, Identifiable, Equatable {
         } else if let sc = try c.decodeIfPresent(Int.self, forKey: .soundCard) {
             sbEnabled = sc > 0
         }
+
+        touchLayoutId = try c.decodeIfPresent(UUID.self, forKey: .touchLayoutId)
+        touchLayoutName = try c.decodeIfPresent(String.self, forKey: .touchLayoutName)
 
         floppyAFilename = try c.decodeIfPresent(String.self, forKey: .floppyAFilename)
         floppyBFilename = try c.decodeIfPresent(String.self, forKey: .floppyBFilename)
@@ -140,10 +153,13 @@ struct MachineConfig: Codable, Identifiable, Equatable {
         try c.encode(machineType, forKey: .machineType)
         try c.encode(speedMode, forKey: .speedMode)
         try c.encode(customCycles, forKey: .customCycles)
+        try c.encode(cpuTypeStr, forKey: .cpuTypeStr)
         try c.encode(memoryMB, forKey: .memoryMB)
         try c.encode(speakerEnabled, forKey: .speakerEnabled)
         try c.encode(sbEnabled, forKey: .sbEnabled)
         try c.encode(mouseEnabled, forKey: .mouseEnabled)
+        try c.encodeIfPresent(touchLayoutId, forKey: .touchLayoutId)
+        try c.encodeIfPresent(touchLayoutName, forKey: .touchLayoutName)
         try c.encode(floppyAFilename, forKey: .floppyAFilename)
         try c.encode(floppyBFilename, forKey: .floppyBFilename)
         try c.encode(hddCFilename, forKey: .hddCFilename)

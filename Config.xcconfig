@@ -1,1 +1,11 @@
 #include? "Local.xcconfig"
+
+// --- Per-platform library search paths ---
+// iOS device: use cross-compiled static libs
+LIBRARY_SEARCH_PATHS[sdk=iphoneos*] = $(inherited) $(SRCROOT)/build-ios $(SRCROOT)/dosbox-ios/vcpkg_installed/arm64-ios/lib
+
+// Mac Catalyst: universal DOSBox libs + vcpkg deps
+LIBRARY_SEARCH_PATHS[sdk=macosx*] = $(inherited) $(SRCROOT)/build-maccatalyst $(SRCROOT)/dosbox-ios/vcpkg_installed/universal-maccatalyst/lib
+
+// iOS-only: OpenGLES + vcpkg deps not available on Mac Catalyst
+OTHER_LDFLAGS[sdk=iphoneos*] = $(inherited) -weak_framework OpenGLES -lpng16 -lopusfile -lopus -logg

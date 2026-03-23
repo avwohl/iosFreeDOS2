@@ -11,9 +11,19 @@ struct ContentView: View {
     @State private var showingSettings = false
     @State private var configAlertMode: ConfigAlertMode? = nil
     @State private var configAlertText = ""
+    @State private var showingTouchEditor = false
+    @State private var showingEmulatorHelp = false
 
     private enum ConfigAlertMode {
         case newConfig, saveAs
+    }
+
+    private var isMacCatalyst: Bool {
+        #if targetEnvironment(macCatalyst)
+        return true
+        #else
+        return false
+        #endif
     }
 
     init() {
@@ -79,28 +89,69 @@ struct ContentView: View {
                 .padding(.horizontal)
                 .padding(.vertical, 6)
 
-                // DOSBox always renders as graphics — use TerminalWithToolbar
-                // which handles keyboard/mouse input, with the gfxImage overlay
-                TerminalWithToolbar(
-                    cells: $viewModel.terminalCells,
-                    cursorRow: $viewModel.cursorRow,
-                    cursorCol: $viewModel.cursorCol,
-                    shouldFocus: $viewModel.terminalShouldFocus,
-                    onKeyInput: { viewModel.sendKey($0) },
-                    onSetControlify: { viewModel.setControlify($0) },
-                    onScancode: { a, s in viewModel.sendDirectScancode(ascii: a, scancode: s) },
-                    onToggleFn: { viewModel.isFnActive.toggle() },
-                    onToggleAlt: { viewModel.isAltActive.toggle() },
-                    onMouseUpdate: { x, y, btn in viewModel.sendMouseUpdate(x: x, y: y, buttons: btn) },
-                    onViewCreated: { viewModel.terminalView = $0 },
-                    isControlifyActive: viewModel.isControlifyActive,
-                    isFnActive: viewModel.isFnActive,
-                    isAltActive: viewModel.isAltActive,
-                    rows: viewModel.terminalRows,
-                    cols: viewModel.terminalCols,
-                    fontSize: fontSize,
-                    gfxImage: viewModel.gfxImage
-                )
+                ZStack {
+                    // DOSBox always renders as graphics — use TerminalWithToolbar
+                    // which handles keyboard/mouse input, with the gfxImage overlay
+                    TerminalWithToolbar(
+                        cells: $viewModel.terminalCells,
+                        cursorRow: $viewModel.cursorRow,
+                        cursorCol: $viewModel.cursorCol,
+                        shouldFocus: $viewModel.terminalShouldFocus,
+                        onKeyInput: { viewModel.sendKey($0) },
+                        onSetControlify: { viewModel.setControlify($0) },
+                        onScancode: { a, s in viewModel.sendDirectScancode(ascii: a, scancode: s) },
+                        onToggleFn: { viewModel.isFnActive.toggle() },
+                        onToggleAlt: { viewModel.isAltActive.toggle() },
+                        onMouseUpdate: { x, y, btn in viewModel.sendMouseUpdate(x: x, y: y, buttons: btn) },
+                        onViewCreated: { viewModel.terminalView = $0 },
+                        onTouchEditor: { showingTouchEditor = true },
+                        onToggleTouchControls: { viewModel.showTouchControls.toggle() },
+                        onHelp: { showingEmulatorHelp = true },
+                        isControlifyActive: viewModel.isControlifyActive,
+                        isFnActive: viewModel.isFnActive,
+                        isAltActive: viewModel.isAltActive,
+                        hasTouchLayout: viewModel.activeLayout != nil,
+                        showTouchControls: viewModel.showTouchControls,
+                        rows: viewModel.terminalRows,
+                        cols: viewModel.terminalCols,
+                        fontSize: fontSize,
+                        gfxImage: viewModel.gfxImage
+                    )
+                    .sheet(isPresented: $showingEmulatorHelp) {
+                        HelpView()
+                    }
+                    .sheet(isPresented: $showingTouchEditor) {
+                        TouchControlEditorView(
+                            layoutManager: viewModel.touchLayoutManager,
+                            activeLayoutId: Binding(
+                                get: { viewModel.config.touchLayoutId },
+                                set: { newId in
+                                    var cfg = viewModel.config
+                                    cfg.touchLayoutId = newId
+                                    if let id = newId {
+                                        cfg.touchLayoutName = viewModel.touchLayoutManager.layout(for: id)?.name
+                                    } else {
+                                        cfg.touchLayoutName = nil
+                                    }
+                                    viewModel.configManager.updateConfig(cfg)
+                                    viewModel.activeLayout = viewModel.touchLayoutManager.layout(for: newId)
+                                }
+                            )
+                        )
+                    }
+
+                    // Touch controls overlay
+                    if let layout = viewModel.activeLayout,
+                       viewModel.showTouchControls,
+                       !isMacCatalyst {
+                        TouchControlsOverlay(
+                            layout: layout,
+                            onScancodePress: { viewModel.sendScancodePress($0) },
+                            onScancodeRelease: { viewModel.sendScancodeRelease($0) },
+                            onMouseDelta: { dx, dy in viewModel.sendMouseDelta(dx: dx, dy: dy) }
+                        )
+                    }
+                }
             }
             .background(Color.black.ignoresSafeArea(.container, edges: .bottom))
             .ignoresSafeArea(.keyboard)
@@ -131,6 +182,7 @@ struct ContentView: View {
             configProfileSection
             displaySection
             peripheralsSection
+            touchControlsSection
             diskSection
             urlDownloadSection
             catalogSection
@@ -282,6 +334,23 @@ struct ContentView: View {
                 }
             ))
 
+            Picker("CPU Type", selection: Binding(
+                get: { viewModel.config.cpuTypeStr },
+                set: { val in
+                    var cfg = viewModel.config
+                    cfg.cpuTypeStr = val
+                    viewModel.configManager.updateConfig(cfg)
+                }
+            )) {
+                Text("Auto (386 fast + 486 extras)").tag("auto")
+                Text("386").tag("386")
+                Text("386 Fast").tag("386_fast")
+                Text("386 Prefetch").tag("386_prefetch")
+                Text("486").tag("486")
+                Text("Pentium").tag("pentium")
+                Text("Pentium MMX").tag("pentium_mmx")
+            }
+
             Picker("CPU Speed", selection: Binding(
                 get: { viewModel.config.speedMode },
                 set: { val in
@@ -297,6 +366,37 @@ struct ContentView: View {
                 Text("486DX2 (66 MHz)").tag(4)
             }
         }
+    }
+
+    // MARK: - Touch Controls Section
+
+    var touchControlsSection: some View {
+        Section("Touch Controls") {
+            HStack {
+                Text("Layout")
+                Spacer()
+                Text(touchLayoutLabel)
+                    .foregroundColor(.secondary)
+            }
+
+            Button("Choose Layout...") {
+                showingTouchEditor = true
+            }
+
+            Text("Virtual D-Pads, buttons, and sticks overlaid on the display for playing games without a keyboard.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private var touchLayoutLabel: String {
+        if let name = viewModel.config.touchLayoutName {
+            return name
+        }
+        if let id = viewModel.config.touchLayoutId {
+            return viewModel.touchLayoutManager.layout(for: id)?.name ?? "Unknown"
+        }
+        return "None"
     }
 
     // MARK: - Disk Section
@@ -588,7 +688,7 @@ struct AboutView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
-                    Text("An IBM PC emulator running FreeDOS on iOS and Mac.")
+                    Text("A DOS emulator for iOS and Mac, powered by DOSBox Staging.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -617,7 +717,7 @@ struct AboutView: View {
                     }
                 }
 
-                Link(destination: URL(string: "https://github.com/avwohl/iosFreeDOS/issues")!) {
+                Link(destination: URL(string: "https://github.com/avwohl/iosFreeDOS2/issues")!) {
                     HStack {
                         Label("Report an Issue", systemImage: "exclamationmark.bubble")
                         Spacer()

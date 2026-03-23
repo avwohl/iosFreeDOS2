@@ -6,6 +6,7 @@ import SwiftUI
 import Combine
 import UniformTypeIdentifiers
 import CryptoKit
+import ZIPFoundation
 
 // MARK: - Catalog Image Types
 
@@ -77,6 +78,11 @@ class EmulatorViewModel: NSObject, ObservableObject, DOSEmulatorDelegate {
     // Configuration
     @Published var configManager = ConfigManager()
 
+    // Touch controls
+    @Published var touchLayoutManager = TouchLayoutManager()
+    @Published var activeLayout: TouchControlLayout? = nil
+    @Published var showTouchControls: Bool = false
+
     // Disk paths
     @Published var floppyAPath: URL? = nil
     @Published var floppyBPath: URL? = nil
@@ -124,6 +130,7 @@ class EmulatorViewModel: NSObject, ObservableObject, DOSEmulatorDelegate {
     private var diskSaveTimer: Timer?
     private var configCancellable: AnyCancellable?
     private var pendingAttachments: [String: Int] = [:]
+    private var autoDownloading: Set<String> = []
     private var bookmarksResolved = false
 
     // Dedicated URLSession with no caching for disk downloads (avoids redirect caching issues)
@@ -134,8 +141,8 @@ class EmulatorViewModel: NSObject, ObservableObject, DOSEmulatorDelegate {
         return URLSession(configuration: config)
     }()
 
-    private let catalogURL = "https://github.com/avwohl/iosFreeDOS/releases/latest/download/disks.xml"
-    private let releaseBaseURL = "https://github.com/avwohl/iosFreeDOS/releases/latest/download"
+    private let catalogURL = "https://github.com/avwohl/iosFreeDOS2/releases/latest/download/disks.xml"
+    private let releaseBaseURL = "https://github.com/avwohl/iosFreeDOS2/releases/latest/download"
 
     var disksDirectory: URL {
         let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -197,6 +204,9 @@ class EmulatorViewModel: NSObject, ObservableObject, DOSEmulatorDelegate {
         clearTerminal()
         statusText = "Loading disks..."
 
+        // Load touch control layout for this config
+        activeLayout = touchLayoutManager.layout(for: cfg.touchLayoutId)
+
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
 
@@ -204,6 +214,7 @@ class EmulatorViewModel: NSObject, ObservableObject, DOSEmulatorDelegate {
 
             // Apply machine config
             emu.setMachineType(DOSMachineType(rawValue: cfg.machineType) ?? .svga)
+            emu.setCpuType(cfg.cpuTypeStr)
             emu.setMemoryMB(Int32(cfg.memoryMB))
             emu.setMouseEnabled(cfg.mouseEnabled)
             emu.setSpeakerEnabled(cfg.speakerEnabled)
@@ -342,8 +353,20 @@ class EmulatorViewModel: NSObject, ObservableObject, DOSEmulatorDelegate {
         emulator?.sendScancode(ascii, scancode: scancode)
     }
 
+    func sendScancodePress(_ scancode: UInt8) {
+        emulator?.sendScancodePress(scancode)
+    }
+
+    func sendScancodeRelease(_ scancode: UInt8) {
+        emulator?.sendScancodeRelease(scancode)
+    }
+
     func sendMouseUpdate(x: Int, y: Int, buttons: Int) {
         emulator?.updateMouseX(Int32(x), y: Int32(y), buttons: Int32(buttons))
+    }
+
+    func sendMouseDelta(dx: Int, dy: Int, buttons: Int = 0) {
+        emulator?.updateMouseDX(Int32(dx), dy: Int32(dy), buttons: Int32(buttons))
     }
 
     func setControlify(_ mode: Int) {
@@ -568,7 +591,14 @@ class EmulatorViewModel: NSObject, ObservableObject, DOSEmulatorDelegate {
     }
 
     private func loadCachedCatalog() -> Bool {
-        guard let data = try? Data(contentsOf: disksDirectory.appendingPathComponent("disks_catalog.xml")) else { return false }
+        if let data = try? Data(contentsOf: disksDirectory.appendingPathComponent("disks_catalog.xml")) {
+            parseCatalogXML(data); refreshDownloadStates()
+            autoAttachDefaultDisks()
+            if !diskCatalog.isEmpty { return true }
+        }
+        // Fall back to bundled catalog
+        guard let url = Bundle.main.url(forResource: "disks", withExtension: "xml"),
+              let data = try? Data(contentsOf: url) else { return false }
         parseCatalogXML(data); refreshDownloadStates()
         autoAttachDefaultDisks()
         return !diskCatalog.isEmpty
@@ -585,7 +615,11 @@ class EmulatorViewModel: NSObject, ObservableObject, DOSEmulatorDelegate {
     func refreshDownloadStates() {
         for disk in diskCatalog {
             let path = disksDirectory.appendingPathComponent(disk.filename)
-            downloadStates[disk.filename] = FileManager.default.fileExists(atPath: path.path) ? .downloaded : (downloadStates[disk.filename] ?? .notDownloaded)
+            if FileManager.default.fileExists(atPath: path.path) {
+                downloadStates[disk.filename] = .downloaded
+            } else {
+                downloadStates[disk.filename] = downloadStates[disk.filename] ?? .notDownloaded
+            }
         }
     }
 
@@ -694,30 +728,35 @@ class EmulatorViewModel: NSObject, ObservableObject, DOSEmulatorDelegate {
 
             DispatchQueue.main.async {
                 guard let self = self else { return }
+                let isAuto = self.autoDownloading.contains(disk.filename)
 
                 if let http = resp as? HTTPURLResponse, http.statusCode < 200 || http.statusCode >= 300 {
-                    if attemptsRemaining > 1 {
+                    if attemptsRemaining > 1 && !isAuto {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                             self.downloadDiskWithRetry(disk, attemptsRemaining: attemptsRemaining - 1)
                         }
                     } else {
-                        self.downloadStates[disk.filename] = .error("HTTP \(http.statusCode) from \(disk.url)")
+                        self.autoDownloading.remove(disk.filename)
+                        self.downloadStates[disk.filename] = isAuto ? .notDownloaded : .error("HTTP \(http.statusCode) from \(disk.url)")
                         self.pendingAttachments.removeValue(forKey: disk.filename)
                     }
                     return
                 }
 
                 if let err = err {
-                    if attemptsRemaining > 1 {
+                    if attemptsRemaining > 1 && !isAuto {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                             self.downloadDiskWithRetry(disk, attemptsRemaining: attemptsRemaining - 1)
                         }
                     } else {
-                        self.downloadStates[disk.filename] = .error("\(err.localizedDescription) (\(disk.url))")
+                        self.autoDownloading.remove(disk.filename)
+                        self.downloadStates[disk.filename] = isAuto ? .notDownloaded : .error("\(err.localizedDescription) (\(disk.url))")
                         self.pendingAttachments.removeValue(forKey: disk.filename)
                     }
                     return
                 }
+
+                self.autoDownloading.remove(disk.filename)
 
                 guard let staged = stagedURL else {
                     if attemptsRemaining > 1 {
@@ -731,32 +770,59 @@ class EmulatorViewModel: NSObject, ObservableObject, DOSEmulatorDelegate {
                     return
                 }
 
-                if let expected = disk.sha256, !expected.isEmpty,
-                   let d = try? Data(contentsOf: staged) {
-                    let hash = SHA256.hash(data: d).map { String(format: "%02x", $0) }.joined()
-                    if hash != expected.lowercased() {
-                        try? FileManager.default.removeItem(at: staged)
-                        self.downloadStates[disk.filename] = .error("SHA256 mismatch")
-                        self.pendingAttachments.removeValue(forKey: disk.filename)
-                        return
+                // SHA256 verification and ZIP extraction run on a background
+                // queue to avoid blocking the main thread on large files.
+                self.downloadStates[disk.filename] = .downloading(progress: 1.0)
+                let disksDir = self.disksDirectory
+                DispatchQueue.global(qos: .userInitiated).async {
+                    if let expected = disk.sha256, !expected.isEmpty,
+                       let d = try? Data(contentsOf: staged) {
+                        let hash = SHA256.hash(data: d).map { String(format: "%02x", $0) }.joined()
+                        if hash != expected.lowercased() {
+                            try? FileManager.default.removeItem(at: staged)
+                            DispatchQueue.main.async {
+                                self.downloadStates[disk.filename] = .error("SHA256 mismatch")
+                                self.pendingAttachments.removeValue(forKey: disk.filename)
+                            }
+                            return
+                        }
                     }
-                }
 
-                let dest = self.disksDirectory.appendingPathComponent(disk.filename)
-                try? FileManager.default.removeItem(at: dest)
-                do {
-                    try FileManager.default.moveItem(at: staged, to: dest)
-                    self.downloadStates[disk.filename] = .downloaded
-                    self.statusText = "Downloaded \(disk.name)"
-                    // Auto-attach if there's a pending attachment for this disk
-                    if let drive = self.pendingAttachments.removeValue(forKey: disk.filename) {
-                        self.attachDiskPath(dest, forDrive: drive, diskName: disk.name)
-                        self.manifestDrives.insert(drive)
+                    var finalStaged = staged
+                    if disk.url.lowercased().hasSuffix(".zip") {
+                        do {
+                            let extracted = try Self.extractDiskFromZip(at: staged)
+                            try? FileManager.default.removeItem(at: staged)
+                            finalStaged = extracted
+                        } catch {
+                            try? FileManager.default.removeItem(at: staged)
+                            DispatchQueue.main.async {
+                                self.downloadStates[disk.filename] = .error("Zip extraction failed: \(error.localizedDescription)")
+                                self.pendingAttachments.removeValue(forKey: disk.filename)
+                            }
+                            return
+                        }
                     }
-                } catch {
-                    try? FileManager.default.removeItem(at: staged)
-                    self.downloadStates[disk.filename] = .error(error.localizedDescription)
-                    self.pendingAttachments.removeValue(forKey: disk.filename)
+
+                    let dest = disksDir.appendingPathComponent(disk.filename)
+                    try? FileManager.default.removeItem(at: dest)
+                    do {
+                        try FileManager.default.moveItem(at: finalStaged, to: dest)
+                        DispatchQueue.main.async {
+                            self.downloadStates[disk.filename] = .downloaded
+                            self.statusText = "Downloaded \(disk.name)"
+                            if let drive = self.pendingAttachments.removeValue(forKey: disk.filename) {
+                                self.attachDiskPath(dest, forDrive: drive, diskName: disk.name)
+                                self.manifestDrives.insert(drive)
+                            }
+                        }
+                    } catch {
+                        try? FileManager.default.removeItem(at: finalStaged)
+                        DispatchQueue.main.async {
+                            self.downloadStates[disk.filename] = .error(error.localizedDescription)
+                            self.pendingAttachments.removeValue(forKey: disk.filename)
+                        }
+                    }
                 }
             }
         }
@@ -783,14 +849,16 @@ class EmulatorViewModel: NSObject, ObservableObject, DOSEmulatorDelegate {
 
     /// Use cached disk if available, otherwise download.  Used for
     /// auto-attach on startup to avoid unnecessary network traffic.
+    /// Download errors are silently ignored — the disk will appear as
+    /// "Download" in the catalog for the user to retry manually.
     private func attachOrDownloadCatalogDisk(_ disk: DownloadableDisk, forDrive drive: Int) {
         let path = disksDirectory.appendingPathComponent(disk.filename)
         if FileManager.default.fileExists(atPath: path.path) {
             attachDiskPath(path, forDrive: drive, diskName: disk.name)
             manifestDrives.insert(drive)
         } else {
+            autoDownloading.insert(disk.filename)
             pendingAttachments[disk.filename] = drive
-            statusText = "Downloading \(disk.name)..."
             downloadDisk(disk)
         }
     }
@@ -862,18 +930,24 @@ class EmulatorViewModel: NSObject, ObservableObject, DOSEmulatorDelegate {
 
     // MARK: - DOSEmulatorDelegate
 
+    private static let rgbColorSpace = CGColorSpaceCreateDeviceRGB()
+
     /// DOSBox rendered a new frame (RGBA pixels)
     func emulatorFrameReady(_ pixels: Data, width: Int32, height: Int32) {
         let w = Int(width), h = Int(height)
-        let bytes = [UInt8](pixels)
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        var pixelData = bytes
-        if let ctx = CGContext(data: &pixelData, width: w, height: h, bitsPerComponent: 8,
-                               bytesPerRow: w * 4, space: colorSpace,
-                               bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
-           let cgImage = ctx.makeImage() {
-            gfxImage = UIImage(cgImage: cgImage)
-        }
+        let colorSpace = Self.rgbColorSpace
+        // Use CFDataCreateWithBytesNoCopy to avoid copying pixel data
+        guard let provider = CGDataProvider(data: pixels as CFData) else { return }
+        guard let cgImage = CGImage(
+            width: w, height: h,
+            bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: w * 4,
+            space: colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider,
+            decode: nil, shouldInterpolate: false,
+            intent: .defaultIntent
+        ) else { return }
+        gfxImage = UIImage(cgImage: cgImage)
     }
 
     func emulatorDidRequestInput() {
@@ -889,6 +963,47 @@ class EmulatorViewModel: NSObject, ObservableObject, DOSEmulatorDelegate {
     }
 }
 
+// MARK: - Zip Extraction
+
+extension EmulatorViewModel {
+    /// Extract the first .iso or .img file from a zip archive.
+    /// Returns the URL of the extracted file in a temp location.
+    static func extractDiskFromZip(at zipURL: URL) throws -> URL {
+        let fm = FileManager.default
+        let archive = try Archive(url: zipURL, accessMode: .read)
+
+        let diskExtensions: Set<String> = ["iso", "img", "ima", "bin"]
+
+        // Find the first disk image entry (skip directories and __MACOSX)
+        guard let entry = archive.first(where: { entry in
+            guard entry.type == .file else { return false }
+            let name = entry.path
+            if name.hasPrefix("__MACOSX") { return false }
+            let ext = (name as NSString).pathExtension.lowercased()
+            return diskExtensions.contains(ext)
+        }) else {
+            throw NSError(domain: "FreeDOS", code: 2, userInfo: [NSLocalizedDescriptionKey: "No .iso or .img found in zip"])
+        }
+
+        let destName = (entry.path as NSString).lastPathComponent
+        let destURL = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + "_" + destName)
+
+        // Extract entry to file
+        _ = try archive.extract(entry) { data in
+            if fm.fileExists(atPath: destURL.path) {
+                let handle = try FileHandle(forWritingTo: destURL)
+                handle.seekToEndOfFile()
+                handle.write(data)
+                handle.closeFile()
+            } else {
+                try data.write(to: destURL)
+            }
+        }
+
+        return destURL
+    }
+}
+
 // MARK: - XML Parser
 
 class DiskCatalogXMLParser: NSObject, XMLParserDelegate {
@@ -897,7 +1012,7 @@ class DiskCatalogXMLParser: NSObject, XMLParserDelegate {
     private var disks: [DownloadableDisk] = []
     var catalogVersion: Int?
     private var elem = "", inDisk = false
-    private var cFilename = "", cName = "", cDesc = "", cLicense = "", cType = ""
+    private var cFilename = "", cName = "", cDesc = "", cLicense = "", cType = "", cURL = ""
     private var cSize: Int64 = 0
     private var cSHA: String?
     private var cDrive: Int?
@@ -912,7 +1027,7 @@ class DiskCatalogXMLParser: NSObject, XMLParserDelegate {
     func parser(_ p: XMLParser, didStartElement e: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String] = [:]) {
         elem = e
         if e == "disks" || e == "catalog" { catalogVersion = attributes["version"].flatMap(Int.init) }
-        else if e == "disk" { inDisk = true; cFilename = ""; cName = ""; cDesc = ""; cSize = 0; cLicense = ""; cSHA = nil; cDrive = nil; cType = "" }
+        else if e == "disk" { inDisk = true; cFilename = ""; cName = ""; cDesc = ""; cSize = 0; cLicense = ""; cSHA = nil; cDrive = nil; cType = ""; cURL = "" }
     }
 
     func parser(_ p: XMLParser, foundCharacters s: String) {
@@ -928,6 +1043,7 @@ class DiskCatalogXMLParser: NSObject, XMLParserDelegate {
         case "sha256": cSHA = (cSHA ?? "") + t
         case "defaultDrive": cDrive = Int(t)
         case "type": cType += t
+        case "url": cURL += t
         default: break
         }
     }
@@ -935,7 +1051,8 @@ class DiskCatalogXMLParser: NSObject, XMLParserDelegate {
     func parser(_ p: XMLParser, didEndElement e: String, namespaceURI: String?, qualifiedName: String?) {
         if e == "disk" && inDisk {
             let imageType = CatalogImageType(rawValue: cType) ?? inferType(filename: cFilename, drive: cDrive)
-            disks.append(DownloadableDisk(filename: cFilename, name: cName, description: cDesc, url: "\(baseURL)/\(cFilename)", sizeBytes: cSize, license: cLicense, sha256: cSHA, defaultDrive: cDrive, type: imageType))
+            let diskURL = cURL.isEmpty ? "\(baseURL)/\(cFilename)" : cURL
+            disks.append(DownloadableDisk(filename: cFilename, name: cName, description: cDesc, url: diskURL, sizeBytes: cSize, license: cLicense, sha256: cSHA, defaultDrive: cDrive, type: imageType))
             inDisk = false
         }
         elem = ""
