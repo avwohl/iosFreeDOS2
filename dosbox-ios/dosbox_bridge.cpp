@@ -12,6 +12,7 @@
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
 
+#include <TargetConditionals.h>
 #include <dispatch/dispatch.h>
 #include <pthread.h>
 
@@ -104,6 +105,15 @@ char *dosbox_write_config(const dosbox_config_t *cfg)
     std::string path = std::string(cfg->working_dir) + "/dosbox-ios.conf";
     FILE *f = fopen(path.c_str(), "w");
     if (!f) return nullptr;
+
+    // [sdl] — on iOS, fullscreen + explicit window_size avoids
+    // get_desktop_size() assertion where SDL_GetDisplayBounds returns 0×0
+    fprintf(f, "[sdl]\n");
+#if TARGET_OS_IOS || TARGET_OS_SIMULATOR
+    fprintf(f, "fullscreen=true\n");
+    fprintf(f, "window_size=640x480\n");
+#endif
+    fprintf(f, "\n");
 
     // [dosbox]
     fprintf(f, "[dosbox]\n");

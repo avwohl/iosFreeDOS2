@@ -291,7 +291,9 @@ static void frame_callback(const uint8_t *pixels, int width, int height, void *c
     if (!_shouldRun) return;
     dosbox_request_shutdown();
     _shouldRun = NO;
-    dispatch_sync(_emulatorQueue, ^{});
+    // Do NOT dispatch_sync here — dosbox_run() needs to dispatch_sync
+    // back to the main thread for GFX_Destroy, which would deadlock.
+    // The emulatorDidExit callback fires when shutdown completes.
 }
 
 - (void)reset {

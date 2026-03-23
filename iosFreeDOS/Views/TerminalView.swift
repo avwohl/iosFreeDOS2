@@ -61,34 +61,80 @@ struct TerminalWithToolbar: View {
     var onTouchEditor: (() -> Void)?
     var onToggleTouchControls: (() -> Void)?
     var onHelp: (() -> Void)?
+    var onToggleKeyboard: (() -> Void)?
+    var onQuit: (() -> Void)?
+    var showQuitButton: Bool = false
     var isControlifyActive: Bool = false
     var isFnActive: Bool = false
     var isAltActive: Bool = false
     var hasTouchLayout: Bool = false
     var showTouchControls: Bool = false
+    var keyboardVisible: Bool = false
+    var keyboardDocked: Bool = false
 
     let rows: Int
     let cols: Int
     let fontSize: CGFloat
     var gfxImage: UIImage? = nil
 
-    var body: some View {
-        HStack(spacing: 0) {
-            VStack(spacing: 6) {
-                // Modifier toggles
-                ToolbarButton(title: "Ctrl", isActive: isControlifyActive) {
-                    onSetControlify?(isControlifyActive ? 0 : 1)
-                }
-                ToolbarButton(title: "Alt", isActive: isAltActive) {
-                    onToggleAlt?()
-                }
-                ToolbarButton(title: "Fn", isActive: isFnActive) {
-                    onToggleFn?()
-                }
+    @State private var stripOnRight = false
+    @State private var maxDisplayHeight: CGFloat = 400
 
-                Divider().frame(width: 28).padding(.vertical, 2)
+    /// Put the strip on the side opposite the camera/Dynamic Island.
+    private func updateStripSide() {
+        #if targetEnvironment(macCatalyst)
+        return
+        #else
+        let dev = UIDevice.current.orientation
+        if dev == .landscapeLeft {
+            stripOnRight = true; return
+        }
+        if dev == .landscapeRight {
+            stripOnRight = false; return
+        }
+        if let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene }).first {
+            stripOnRight = scene.interfaceOrientation == .landscapeRight
+        }
+        #endif
+    }
 
-                // Common keys
+    /// Read actual safe area height from UIKit — bypasses SwiftUI layout issues.
+    private func updateMaxDisplayHeight() {
+        #if targetEnvironment(macCatalyst)
+        maxDisplayHeight = .infinity
+        #else
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene }).first,
+            let window = scene.windows.first else { return }
+        let insets = window.safeAreaInsets
+        let screenH = UIScreen.main.bounds.height
+        maxDisplayHeight = screenH - insets.top - insets.bottom
+        #endif
+    }
+
+    private var controlStrip: some View {
+        VStack(spacing: 3) {
+            // Keyboard show/hide
+            ToolbarIconButton(icon: "keyboard", isActive: keyboardVisible) {
+                onToggleKeyboard?()
+            }
+
+            // Modifier toggles
+            ToolbarButton(title: "Ctrl", isActive: isControlifyActive) {
+                onSetControlify?(isControlifyActive ? 0 : 1)
+            }
+            ToolbarButton(title: "Alt", isActive: isAltActive) {
+                onToggleAlt?()
+            }
+            ToolbarButton(title: "Fn", isActive: isFnActive) {
+                onToggleFn?()
+            }
+
+            // Hide extra keys when docked keyboard takes screen space
+            if !keyboardDocked {
+                Divider().frame(width: 24)
+
                 ToolbarButton(title: "Esc", isActive: false) {
                     onSetControlify?(0)
                     onKeyInput?(Character(UnicodeScalar(27)))
@@ -102,7 +148,7 @@ struct TerminalWithToolbar: View {
                     onKeyInput?(Character(UnicodeScalar(9)))
                 }
 
-                Divider().frame(width: 28).padding(.vertical, 2)
+                Divider().frame(width: 24)
 
                 ToolbarButton(title: "Del", isActive: false) {
                     onScancode?(0, 0x53)
@@ -118,69 +164,111 @@ struct TerminalWithToolbar: View {
                 }
 
                 if hasTouchLayout {
-                    Divider().frame(width: 28).padding(.vertical, 2)
+                    Divider().frame(width: 24)
 
-                    Button { onTouchEditor?() } label: {
-                        Image(systemName: "gamecontroller")
-                            .frame(width: 36, height: 28)
-                            .background(Color(UIColor.systemGray4))
-                            .cornerRadius(6)
+                    ToolbarIconButton(icon: "gamecontroller", isActive: false) {
+                        onTouchEditor?()
                     }
-                    .buttonStyle(.plain)
-
-                    Button { onToggleTouchControls?() } label: {
-                        Image(systemName: showTouchControls ? "eye.fill" : "eye.slash")
-                            .frame(width: 36, height: 28)
-                            .background(showTouchControls ? Color.blue : Color(UIColor.systemGray4))
-                            .foregroundColor(showTouchControls ? .white : .primary)
-                            .cornerRadius(6)
+                    ToolbarIconButton(icon: showTouchControls ? "eye.fill" : "eye.slash",
+                                      isActive: showTouchControls) {
+                        onToggleTouchControls?()
                     }
-                    .buttonStyle(.plain)
                 }
 
-                Divider().frame(width: 28).padding(.vertical, 2)
+                Divider().frame(width: 24)
 
-                Button { onHelp?() } label: {
-                    Image(systemName: "questionmark.circle")
-                        .frame(width: 36, height: 28)
-                        .background(Color(UIColor.systemGray4))
-                        .cornerRadius(6)
+                ToolbarIconButton(icon: "questionmark.circle", isActive: false) {
+                    onHelp?()
                 }
-                .buttonStyle(.plain)
-
-                Spacer()
             }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 4)
-            .background(Color(UIColor.systemGray5))
 
-            ZStack {
-                // Invisible TerminalView underneath handles keyboard/mouse input
-                TerminalView(
-                    cells: $cells,
-                    cursorRow: $cursorRow,
-                    cursorCol: $cursorCol,
-                    shouldFocus: $shouldFocus,
-                    onKeyInput: onKeyInput,
-                    onScancode: onScancode,
-                    onMouseUpdate: onMouseUpdate,
-                    onViewCreated: onViewCreated,
-                    rows: rows,
-                    cols: cols,
-                    fontSize: fontSize
-                )
-                .opacity(gfxImage == nil ? 1 : 0)
-
-                // DOSBox graphics frame overlay
-                if let img = gfxImage {
-                    Image(uiImage: img)
-                        .interpolation(.none)
-                        .resizable()
-                        .aspectRatio(CGSize(width: 4, height: 3), contentMode: .fit)
-                        .allowsHitTesting(false) // Pass touches to TerminalView below
+            if showQuitButton {
+                ToolbarIconButton(icon: "xmark.circle", isActive: false) {
+                    onQuit?()
                 }
+            }
+
+            Spacer()
+        }
+        .padding(.top, 6)
+        .padding(.bottom, 4)
+        .padding(.horizontal, 3)
+        .background(Color(UIColor.systemGray5))
+    }
+
+    private var displayArea: some View {
+        ZStack {
+            TerminalView(
+                cells: $cells,
+                cursorRow: $cursorRow,
+                cursorCol: $cursorCol,
+                shouldFocus: $shouldFocus,
+                onKeyInput: onKeyInput,
+                onScancode: onScancode,
+                onMouseUpdate: onMouseUpdate,
+                onViewCreated: onViewCreated,
+                rows: rows,
+                cols: cols,
+                fontSize: fontSize
+            )
+            .opacity(gfxImage == nil ? 1 : 0)
+
+            if let img = gfxImage {
+                Image(uiImage: img)
+                    .interpolation(.none)
+                    .resizable()
+                    .aspectRatio(CGSize(width: 4, height: 3), contentMode: .fit)
+                    .frame(maxHeight: maxDisplayHeight)
+                    .allowsHitTesting(false)
             }
         }
+        .frame(maxHeight: maxDisplayHeight)
+        .clipped()
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            if stripOnRight {
+                displayArea
+                controlStrip
+            } else {
+                controlStrip
+                displayArea
+            }
+        }
+        .onAppear {
+            #if !targetEnvironment(macCatalyst)
+            UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+            #endif
+            updateStripSide()
+            updateMaxDisplayHeight()
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: UIDevice.orientationDidChangeNotification
+        )) { _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                updateStripSide()
+                updateMaxDisplayHeight()
+            }
+        }
+    }
+}
+
+struct ToolbarIconButton: View {
+    let icon: String
+    let isActive: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .medium))
+                .frame(width: 30, height: 22)
+                .background(isActive ? Color.blue : Color(UIColor.systemGray4))
+                .foregroundColor(isActive ? .white : .primary)
+                .cornerRadius(5)
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -192,12 +280,12 @@ struct ToolbarButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 14, weight: .medium))
-                .frame(width: 36)
-                .padding(.vertical, 6)
+                .font(.system(size: 11, weight: .medium))
+                .frame(width: 30)
+                .padding(.vertical, 4)
                 .background(isActive ? Color.blue : Color(UIColor.systemGray4))
                 .foregroundColor(isActive ? .white : .primary)
-                .cornerRadius(6)
+                .cornerRadius(5)
         }
         .buttonStyle(.plain)
     }
@@ -209,6 +297,7 @@ class TerminalUIView: UIView, UIKeyInput {
     var onKeyInput: ((Character) -> Void)?
     var onScancode: ((UInt8, UInt8) -> Void)?
     var onMouseUpdate: ((Int, Int, Int) -> Void)?
+    var onKeyboardStateChanged: ((Bool, Bool) -> Void)?  // (visible, docked)
 
     private let rows: Int
     private let cols: Int
@@ -266,6 +355,21 @@ class TerminalUIView: UIView, UIKeyInput {
 
         let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
         addGestureRecognizer(pan)
+
+        #if !targetEnvironment(macCatalyst)
+        NotificationCenter.default.addObserver(
+            forName: UIResponder.keyboardWillChangeFrameNotification, object: nil, queue: .main
+        ) { [weak self] notification in
+            guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
+                  frame.width > 0 else { return }
+            let screen = UIScreen.main.bounds
+            let isHidden = frame.origin.y >= screen.height - 1
+            let isDocked = !isHidden &&
+                           frame.width >= screen.width * 0.9 &&
+                           frame.maxY >= screen.height - 1
+            self?.onKeyboardStateChanged?(!isHidden, isDocked)
+        }
+        #endif
     }
 
     required init?(coder: NSCoder) { fatalError() }

@@ -58,8 +58,8 @@
     },
     {
       "id": "github_source",
-      "title": "iosFreeDOS Source Code",
-      "description": "iosFreeDOS2 source code, issues, and releases",
+      "title": "FreeDOS Emulator Source Code",
+      "description": "FreeDOS emulator source code, issues, and releases",
       "url": "https://github.com/avwohl/iosFreeDOS2"
     }
   ]

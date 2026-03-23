@@ -10,7 +10,8 @@
 set -e
 
 IMGDIR="$(cd "$(dirname "$0")/.." && pwd)"
-OUTIMG="$IMGDIR/fd/freedos_hd.img"
+FINALIMG="$IMGDIR/fd/freedos_hd.img"
+OUTIMG="/tmp/freedos_hd_build.img"
 SRCIMG="$IMGDIR/fd/freedos.img"
 
 # Download FreeDOS boot floppy if not present
@@ -367,67 +368,6 @@ echo ""
 echo "Dev copy: $DEVIMG"
 
 # =========================================================================
-# 8. Catalog consistency check
+# 8. Compare with existing image and update catalog if changed
 # =========================================================================
-echo ""
-echo "--- Catalog consistency check ---"
-WARNINGS=0
-
-RELEASE_XML="$IMGDIR/release_assets/disks.xml"
-BUNDLED_XML="$IMGDIR/iosFreeDOS/Resources/disks.xml"
-DISK_NAME=$(basename "$OUTIMG")
-ACTUAL_SIZE=$(stat -f%z "$OUTIMG")
-ACTUAL_SHA=$(shasum -a 256 "$OUTIMG" | awk '{print $1}')
-
-check_xml() {
-  local label="$1" xmlfile="$2"
-  if [ ! -f "$xmlfile" ]; then
-    echo "  WARNING: $label not found: $xmlfile"
-    WARNINGS=$((WARNINGS + 1))
-    return
-  fi
-  eval "$(python3 -c "
-import xml.etree.ElementTree as ET, sys
-tree = ET.parse('$xmlfile')
-for d in tree.findall('disk'):
-    if d.findtext('filename') == '$DISK_NAME':
-        print('xml_size=' + (d.findtext('size') or ''))
-        print('xml_sha=' + (d.findtext('sha256') or ''))
-        sys.exit(0)
-print('xml_size='); print('xml_sha=')
-")"
-  if [ -z "$xml_size" ]; then
-    echo "  WARNING: $DISK_NAME not found in $label"
-    WARNINGS=$((WARNINGS + 1))
-  elif [ "$xml_size" != "$ACTUAL_SIZE" ]; then
-    echo "  WARNING: $label size mismatch: xml=$xml_size actual=$ACTUAL_SIZE"
-    WARNINGS=$((WARNINGS + 1))
-  fi
-  if [ -n "$xml_sha" ] && [ "$xml_sha" != "$ACTUAL_SHA" ]; then
-    echo "  WARNING: $label sha256 mismatch"
-    echo "    xml:    $xml_sha"
-    echo "    actual: $ACTUAL_SHA"
-    WARNINGS=$((WARNINGS + 1))
-  elif [ -z "$xml_sha" ]; then
-    echo "  WARNING: $label has empty sha256 for $DISK_NAME"
-    WARNINGS=$((WARNINGS + 1))
-  fi
-}
-
-check_xml "release_assets/disks.xml" "$RELEASE_XML"
-check_xml "Resources/disks.xml" "$BUNDLED_XML"
-
-if [ -f "$RELEASE_XML" ] && [ -f "$BUNDLED_XML" ]; then
-  if ! diff -q "$RELEASE_XML" "$BUNDLED_XML" > /dev/null 2>&1; then
-    echo "  WARNING: release_assets/disks.xml and Resources/disks.xml differ"
-    WARNINGS=$((WARNINGS + 1))
-  fi
-fi
-
-if [ "$WARNINGS" -eq 0 ]; then
-  echo "  All checks passed."
-else
-  echo ""
-  echo "  $WARNINGS warning(s). Update disks.xml files to match the new disk image."
-  echo "  Actual size: $ACTUAL_SIZE  sha256: $ACTUAL_SHA"
-fi
+bash "$IMGDIR/scripts/update_catalog.sh" "$OUTIMG" "$FINALIMG"

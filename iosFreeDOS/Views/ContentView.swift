@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var configAlertText = ""
     @State private var showingTouchEditor = false
     @State private var showingEmulatorHelp = false
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     private enum ConfigAlertMode {
         case newConfig, saveAs
@@ -48,6 +49,11 @@ struct ContentView: View {
         } message: {
             Text(viewModel.errorMessage)
         }
+        .alert("Catalog Updated", isPresented: $viewModel.showingNotice) {
+            Button("OK") {}
+        } message: {
+            Text(viewModel.noticeMessage)
+        }
         .alert("Disk May Be Overwritten", isPresented: $viewModel.showingManifestWriteWarning) {
             Button("OK") {}
         } message: {
@@ -73,21 +79,24 @@ struct ContentView: View {
     var runningView: some View {
         ZStack {
             VStack(spacing: 0) {
-                HStack {
-                    Text(viewModel.config.name)
-                        .font(.headline)
-                    Spacer()
-                    if !viewModel.statusText.isEmpty {
-                        Text(viewModel.statusText)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                // Hide header on iPhone landscape to maximize vertical space for 4:3 display
+                if verticalSizeClass != .compact {
+                    HStack {
+                        Text(viewModel.config.name)
+                            .font(.headline)
+                        Spacer()
+                        if !viewModel.statusText.isEmpty {
+                            Text(viewModel.statusText)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Button("Quit") { viewModel.stop() }
+                            .foregroundColor(.red)
+                            .disabled(viewModel.isStarting)
                     }
-                    Button("Quit") { viewModel.stop() }
-                        .foregroundColor(.red)
-                        .disabled(viewModel.isStarting)
+                    .padding(.horizontal)
+                    .padding(.vertical, 6)
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 6)
 
                 ZStack {
                     // DOSBox always renders as graphics — use TerminalWithToolbar
@@ -103,15 +112,39 @@ struct ContentView: View {
                         onToggleFn: { viewModel.isFnActive.toggle() },
                         onToggleAlt: { viewModel.isAltActive.toggle() },
                         onMouseUpdate: { x, y, btn in viewModel.sendMouseUpdate(x: x, y: y, buttons: btn) },
-                        onViewCreated: { viewModel.terminalView = $0 },
+                        onViewCreated: { tv in
+                            viewModel.terminalView = tv
+                            tv.onKeyboardStateChanged = { visible, docked in
+                                viewModel.keyboardVisible = visible
+                                viewModel.keyboardDocked = docked
+                            }
+                        },
                         onTouchEditor: { showingTouchEditor = true },
                         onToggleTouchControls: { viewModel.showTouchControls.toggle() },
                         onHelp: { showingEmulatorHelp = true },
+                        onToggleKeyboard: {
+                            if let tv = viewModel.terminalView {
+                                if tv.isFirstResponder {
+                                    tv.resignFirstResponder()
+                                    viewModel.terminalShouldFocus = false
+                                    viewModel.keyboardVisible = false
+                                    viewModel.keyboardDocked = false
+                                } else {
+                                    viewModel.terminalShouldFocus = true
+                                    tv.becomeFirstResponder()
+                                    viewModel.keyboardVisible = true
+                                }
+                            }
+                        },
+                        onQuit: { viewModel.stop() },
+                        showQuitButton: verticalSizeClass == .compact,
                         isControlifyActive: viewModel.isControlifyActive,
                         isFnActive: viewModel.isFnActive,
                         isAltActive: viewModel.isAltActive,
                         hasTouchLayout: viewModel.activeLayout != nil,
                         showTouchControls: viewModel.showTouchControls,
+                        keyboardVisible: viewModel.keyboardVisible,
+                        keyboardDocked: viewModel.keyboardDocked,
                         rows: viewModel.terminalRows,
                         cols: viewModel.terminalCols,
                         fontSize: fontSize,
@@ -193,8 +226,12 @@ struct ContentView: View {
         .navigationTitle("FreeDOS")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("Start") { viewModel.start() }
-                    .disabled(viewModel.floppyAPath == nil && viewModel.hddCPath == nil && viewModel.isoPath == nil)
+                HStack(spacing: 12) {
+                    Button("Start") { viewModel.start() }
+                        .disabled(viewModel.floppyAPath == nil && viewModel.hddCPath == nil && viewModel.isoPath == nil)
+                    Button("Quit") { exit(0) }
+                        .foregroundColor(.red)
+                }
             }
         }
         .alert(

@@ -78,6 +78,10 @@ class EmulatorViewModel: NSObject, ObservableObject, DOSEmulatorDelegate {
     // Configuration
     @Published var configManager = ConfigManager()
 
+    // Keyboard state (updated via keyboardWillChangeFrame notification)
+    @Published var keyboardVisible: Bool = false
+    @Published var keyboardDocked: Bool = false
+
     // Touch controls
     @Published var touchLayoutManager = TouchLayoutManager()
     @Published var activeLayout: TouchControlLayout? = nil
@@ -96,6 +100,8 @@ class EmulatorViewModel: NSObject, ObservableObject, DOSEmulatorDelegate {
     @Published var showingDiskExporter: Bool = false
     @Published var showingError: Bool = false
     @Published var errorMessage: String = ""
+    @Published var showingNotice: Bool = false
+    @Published var noticeMessage: String = ""
     @Published var showingManifestWriteWarning: Bool = false
 
     // Manifest disk tracking - which drive slots hold catalog images
@@ -304,7 +310,7 @@ class EmulatorViewModel: NSObject, ObservableObject, DOSEmulatorDelegate {
         manifestPollTimer?.invalidate(); manifestPollTimer = nil
         saveAllDisks()
         emulator?.stop()
-        isRunning = false
+        // isRunning is cleared in emulatorDidExit() when DOSBox finishes
     }
 
     func reset() { stop(); emulator = nil }
@@ -649,8 +655,8 @@ class EmulatorViewModel: NSObject, ObservableObject, DOSEmulatorDelegate {
             deleteAllDownloadedDisks()
             UserDefaults.standard.set(newVersion, forKey: "catalogVersion")
             statusText = "Catalog updated - disks need redownload"
-            errorMessage = "Disk catalog has been updated (v\(storedVersion) -> v\(newVersion)). Downloaded disks have been cleared and need to be redownloaded."
-            showingError = true
+            noticeMessage = "Disk catalog has been updated (v\(storedVersion) → v\(newVersion)). Downloaded disks have been cleared and will be redownloaded."
+            showingNotice = true
         }
     }
 
