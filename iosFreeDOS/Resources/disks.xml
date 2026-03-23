@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<catalog version="25">
+<catalog version="26">
     <!-- ===========================================
          Bootable disk images (shipped in release)
          =========================================== -->
@@ -31,9 +31,9 @@
         <name>FreeDOS 1.4 LiveCD</name>
         <type>iso</type>
         <description>Official FreeDOS 1.4 installer and live CD. Boot from CD-ROM to install FreeDOS or run directly. Includes all standard packages.</description>
-        <size>293601280</size>
+        <size>316557312</size>
         <license>GPL</license>
-        <sha256></sha256>
+        <sha256>c48a9dcf4b8e22f44e268a9879745f0bd88c061195ac584e6ef2deb0477f81fb</sha256>
         <url>https://download.freedos.org/1.4/FD14-LiveCD.zip</url>
     </disk>
     <disk>
