@@ -33,6 +33,23 @@ find_iso() {
 LIVEISO=$(find_iso "FD14LIVE.iso" || true)
 BONUSISO=$(find_iso "FD14BNS.iso" || true)
 
+# Download LiveCD if not found
+if [ -z "$LIVEISO" ]; then
+  LIVEISO="$IMGDIR/fd/FD14LIVE.iso"
+  LIVEZIP="$IMGDIR/fd/FD14-LiveCD.zip"
+  echo "Downloading FreeDOS 1.4 LiveCD..."
+  curl -L --retry 3 --connect-timeout 30 -o "$LIVEZIP" \
+    https://download.freedos.org/1.4/FD14-LiveCD.zip
+  echo "Extracting LiveCD ISO..."
+  unzip -o -q "$LIVEZIP" -d "$IMGDIR/fd/"
+  rm -f "$LIVEZIP"
+  if [ ! -f "$LIVEISO" ]; then
+    echo "ERROR: Expected $LIVEISO after extraction"
+    ls "$IMGDIR/fd/"*.iso 2>/dev/null
+    exit 1
+  fi
+fi
+
 echo "LiveCD ISO:  ${LIVEISO:-not found}"
 echo "Bonus ISO:   ${BONUSISO:-not found}"
 

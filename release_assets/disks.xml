@@ -10,7 +10,7 @@
         <description>200MB bootable hard disk with FreeDOS 1.4, 230 utilities, archivers, editors, and disk tools.</description>
         <size>210051072</size>
         <license>GPL</license>
-        <sha256>c92eefdf145fc2ff380881d62140ac2aa75a2319debbe1426afdca08aaa84c1c</sha256>
+        <sha256>39af1bd7794563e3fd739582ccade68df255e8a8efb63f27321782b318e006b7</sha256>
     </disk>
     <disk>
         <filename>freedos_starter.img</filename>
