@@ -47,7 +47,6 @@ targets:
           - -lwhereami
           - -lym7128b
           - -lzmbv
-          - -liir1
           - -lSDL2
           - -lSDL2main
           - -lSDL2_image
@@ -70,10 +69,14 @@ targets:
           - -lresolv
         "OTHER_LDFLAGS[sdk=iphoneos*]":
           - $(inherited)
+          - -liir_static
           - -lpng16
           - -lopusfile
           - -lopus
           - -logg
+        "OTHER_LDFLAGS[sdk=macosx*]":
+          - $(inherited)
+          - -liir1
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown
         INFOPLIST_KEY_UIRequiresFullScreen: NO
