@@ -85,7 +85,7 @@ dd if=/tmp/mbr.bin of="$OUTIMG" bs=512 count=1 conv=notrunc 2>/dev/null
 
 # 3. Format partition as FAT16
 dd if=/dev/zero of=/tmp/partition.img bs=512 count=$PART_SECTORS 2>/dev/null
-mkfs.fat -F 16 -n "FREEDOS" -h $PART_START -S 512 -s 4 /tmp/partition.img
+mkfs.fat -F 16 -n "FREEDOS" -h $PART_START -S 512 -s 4 -g $HEADS/$SPT /tmp/partition.img
 dd if=/tmp/partition.img of="$OUTIMG" bs=512 seek=$PART_START conv=notrunc 2>/dev/null
 
 # 4. Set up mtools

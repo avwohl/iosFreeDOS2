@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<catalog version="23">
+<catalog version="24">
     <!-- ===========================================
          Bootable disk images (shipped in release)
          =========================================== -->
@@ -19,7 +19,7 @@
         <description>22MB bootable FreeDOS with essential utilities, DPMI support, and networking (mTCP). Small download, good for getting started.</description>
         <size>23224320</size>
         <license>GPL</license>
-        <sha256>7f5958cc4d6b16ea590f620ac3be0e27597fd5d4f084979495ca5c9fdfcbf210</sha256>
+        <sha256>3c2f32b6fda768f24b14943ee968cb9078bffc64b5bda670903e0a111d561304</sha256>
         <defaultDrive>128</defaultDrive>
     </disk>
 
