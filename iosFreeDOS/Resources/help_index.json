@@ -23,7 +23,7 @@
     {
       "id": "touch_controls",
       "title": "Touch Controls",
-      "description": "Virtual D-pad, analog stick, and buttons for playing games on iPad",
+      "description": "Virtual D-pad, analog stick, and buttons for playing games without a physical keyboard",
       "filename": "help_touch_controls.md"
     },
     {

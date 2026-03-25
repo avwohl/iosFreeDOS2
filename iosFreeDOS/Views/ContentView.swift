@@ -725,7 +725,7 @@ struct AboutView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
-                    Text("A DOS emulator for iOS and Mac, powered by DOSBox Staging.")
+                    Text("A DOS emulator for your phone, tablet, and desktop, powered by DOSBox Staging.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
