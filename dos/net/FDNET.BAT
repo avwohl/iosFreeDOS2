@@ -1,6 +1,6 @@
 @ECHO OFF
-REM NET.BAT — Start NE2000 networking with SLIRP
-REM Loads the packet driver and gets an IP via DHCP.
+REM FDNET.BAT — FreeDOS standard networking startup
+REM Loads NE2000 packet driver and gets an IP via DHCP.
 REM After this, you can use FTP, TELNET, PING, HTGET.
 
 IF "%FDNET_ACTIVE%"=="1" GOTO ALREADY

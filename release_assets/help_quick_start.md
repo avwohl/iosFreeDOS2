@@ -79,10 +79,10 @@ Files are stored in the FreeDOS folder in the Files app. See the File Transfer h
 
 ## Networking
 
-Type `NET` at the DOS prompt to start networking:
+Type `FDNET` at the DOS prompt to start networking:
 
 ```
-C:\> NET
+C:\> FDNET
 ```
 
 This loads the NE2000 network driver and gets an IP address. Once connected, use `FTP` to transfer files, `TELNET` for remote terminals, or `HTGET` to download files from the web. See the Networking help topic for details.

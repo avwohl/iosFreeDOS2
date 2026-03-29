@@ -255,6 +255,25 @@ struct ContentView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingTouchEditor) {
+            TouchControlEditorView(
+                layoutManager: viewModel.touchLayoutManager,
+                activeLayoutId: Binding(
+                    get: { viewModel.config.touchLayoutId },
+                    set: { newId in
+                        var cfg = viewModel.config
+                        cfg.touchLayoutId = newId
+                        if let id = newId {
+                            cfg.touchLayoutName = viewModel.touchLayoutManager.layout(for: id)?.name
+                        } else {
+                            cfg.touchLayoutName = nil
+                        }
+                        viewModel.configManager.updateConfig(cfg)
+                        viewModel.activeLayout = viewModel.touchLayoutManager.layout(for: newId)
+                    }
+                )
+            )
+        }
         .alert(
             configAlertMode == .saveAs ? "Save As" : "New Configuration",
             isPresented: Binding(
@@ -746,7 +765,7 @@ struct AboutView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
-                    Text("A DOS emulator for your phone, tablet, and desktop, powered by DOSBox Staging.")
+                    Text("A port of FreeDOS to your phone, tablet, and desktop, powered by DOSBox Staging.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -766,24 +785,6 @@ struct AboutView: View {
             }
 
             Section("Links") {
-                Link(destination: URL(string: "https://github.com/avwohl/iosFreeDOS2")!) {
-                    HStack {
-                        Label("Source Code on GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
-                        Spacer()
-                        Image(systemName: "arrow.up.right.square")
-                            .foregroundColor(.secondary)
-                    }
-                }
-
-                Link(destination: URL(string: "https://github.com/avwohl/iosFreeDOS2/issues")!) {
-                    HStack {
-                        Label("Report an Issue", systemImage: "exclamationmark.bubble")
-                        Spacer()
-                        Image(systemName: "arrow.up.right.square")
-                            .foregroundColor(.secondary)
-                    }
-                }
-
                 Link(destination: URL(string: "https://www.freedos.org")!) {
                     HStack {
                         Label("FreeDOS Project", systemImage: "desktopcomputer")
@@ -796,6 +797,33 @@ struct AboutView: View {
                 Link(destination: URL(string: "https://github.com/FDOS/kernel")!) {
                     HStack {
                         Label("FreeDOS Kernel Source", systemImage: "doc.text")
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Link(destination: URL(string: "https://dosbox-staging.github.io")!) {
+                    HStack {
+                        Label("DOSBox Staging", systemImage: "cpu")
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Link(destination: URL(string: "https://github.com/avwohl/iosFreeDOS2")!) {
+                    HStack {
+                        Label("Source Code on GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Link(destination: URL(string: "https://github.com/avwohl/iosFreeDOS2/issues")!) {
+                    HStack {
+                        Label("Report an Issue", systemImage: "exclamationmark.bubble")
                         Spacer()
                         Image(systemName: "arrow.up.right.square")
                             .foregroundColor(.secondary)

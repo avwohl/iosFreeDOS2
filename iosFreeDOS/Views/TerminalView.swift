@@ -175,11 +175,12 @@ struct TerminalWithToolbar: View {
                     }
                 }
 
-                Divider().frame(width: 24)
+            }
 
-                ToolbarIconButton(icon: "questionmark.circle", isActive: false) {
-                    onHelp?()
-                }
+            Divider().frame(width: 24)
+
+            ToolbarIconButton(icon: "questionmark.circle", isActive: false) {
+                onHelp?()
             }
 
             if showQuitButton {

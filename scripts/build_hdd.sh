@@ -293,7 +293,7 @@ if [ -d "$IMGDIR/dos/net" ]; then
     echo "Installing networking tools..."
     mmd c:/NET 2>/dev/null || true
     for f in NE2000.COM DHCP.EXE FTP.EXE TELNET.EXE PING.EXE HTGET.EXE \
-             MTCP.CFG NET.BAT COPYING.TXT; do
+             MTCP.CFG NET.BAT FDNET.BAT COPYING.TXT; do
         if [ -f "$IMGDIR/dos/net/$f" ]; then
             case "$f" in
                 *.BAT|*.CFG|*.TXT)
@@ -306,7 +306,12 @@ if [ -d "$IMGDIR/dos/net" ]; then
             esac
         fi
     done
-    echo "  Installed NE2000.COM, mTCP (FTP, TELNET, PING, HTGET, DHCP)"
+    # Install FDNET.BAT to FREEDOS\BIN so it's on PATH (standard FreeDOS location)
+    if [ -f "$IMGDIR/dos/net/FDNET.BAT" ]; then
+        sed 's/\r$//' "$IMGDIR/dos/net/FDNET.BAT" | sed 's/$/'$'\r''/' > "/tmp/FDNET.BAT"
+        mcopy -D o "/tmp/FDNET.BAT" "c:/FREEDOS/BIN/FDNET.BAT"
+    fi
+    echo "  Installed NE2000.COM, mTCP (FTP, TELNET, PING, HTGET, DHCP), FDNET"
 fi
 
 # =========================================================================

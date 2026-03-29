@@ -178,7 +178,7 @@ fi
 printf 'LASTDRIVE=Z\r\nFILES=40\r\nBUFFERS=20\r\nDOS=HIGH\r\nSHELL=C:\\COMMAND.COM C:\\ /E:1024 /P\r\n' > /tmp/FDCONFIG.SYS
 mcopy -D o /tmp/FDCONFIG.SYS c:
 
-printf '@ECHO OFF\r\nSET DOSDIR=C:\\FREEDOS\r\nSET PATH=C:\\FREEDOS\\BIN;C:\\NET\r\nSET NLSPATH=C:\\FREEDOS\\NLS\r\nSET TEMP=C:\\TEMP\r\nSET DIRCMD=/ON\r\nSET MTCPCFG=C:\\NET\\MTCP.CFG\r\nIF NOT EXIST C:\\TEMP\\NUL MD C:\\TEMP\r\nECHO.\r\nECHO FreeDOS ready. Type HELP for commands, EDIT to edit files.\r\nECHO Type NET to start networking (FTP, TELNET, PING).\r\nECHO.\r\n' > /tmp/AUTOEXEC.BAT
+printf '@ECHO OFF\r\nSET DOSDIR=C:\\FREEDOS\r\nSET PATH=C:\\FREEDOS\\BIN;C:\\NET\r\nSET NLSPATH=C:\\FREEDOS\\NLS\r\nSET TEMP=C:\\TEMP\r\nSET DIRCMD=/ON\r\nSET MTCPCFG=C:\\NET\\MTCP.CFG\r\nIF NOT EXIST C:\\TEMP\\NUL MD C:\\TEMP\r\nECHO.\r\nECHO FreeDOS ready. Type HELP for commands, EDIT to edit files.\r\nECHO Type FDNET to start networking (FTP, TELNET, PING).\r\nECHO.\r\n' > /tmp/AUTOEXEC.BAT
 mcopy -D o /tmp/AUTOEXEC.BAT c:
 
 mmd c:/TEMP 2>/dev/null || true
@@ -205,7 +205,7 @@ if [ -d "$IMGDIR/dos/net" ]; then
     echo "Installing networking tools..."
     mmd c:/NET 2>/dev/null || true
     for f in NE2000.COM DHCP.EXE FTP.EXE TELNET.EXE PING.EXE HTGET.EXE \
-             MTCP.CFG NET.BAT COPYING.TXT; do
+             MTCP.CFG NET.BAT FDNET.BAT COPYING.TXT; do
         if [ -f "$IMGDIR/dos/net/$f" ]; then
             case "$f" in
                 *.BAT|*.CFG|*.TXT)
@@ -219,7 +219,12 @@ if [ -d "$IMGDIR/dos/net" ]; then
             esac
         fi
     done
-    echo "  Installed NE2000.COM, mTCP (FTP, TELNET, PING, HTGET, DHCP)"
+    # Install FDNET.BAT to FREEDOS\BIN so it's on PATH (standard FreeDOS location)
+    if [ -f "$IMGDIR/dos/net/FDNET.BAT" ]; then
+        sed 's/\r$//' "$IMGDIR/dos/net/FDNET.BAT" | sed 's/$/'$'\r''/' > "/tmp/FDNET.BAT"
+        mcopy -D o "/tmp/FDNET.BAT" "c:/FREEDOS/BIN/FDNET.BAT"
+    fi
+    echo "  Installed NE2000.COM, mTCP (FTP, TELNET, PING, HTGET, DHCP), FDNET"
 fi
 
 # =========================================================================

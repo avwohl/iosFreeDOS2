@@ -4,16 +4,16 @@ FreeDOS includes NE2000 Ethernet networking with SLIRP, a virtual NAT router tha
 
 ## Quick Start
 
-Type `NET` at the DOS prompt:
+Type `FDNET` at the DOS prompt:
 
 ```
-C:\> NET
+C:\> FDNET
 Loading NE2000 packet driver...
 Getting IP address via DHCP...
 Network is ready.
 ```
 
-That's it. The `NET` command loads the network driver and gets an IP address automatically. You only need to run it once per session.
+That's it. The `FDNET` command loads the network driver and gets an IP address automatically. You only need to run it once per session.
 
 ## Transferring Files
 
@@ -82,7 +82,7 @@ SLIRP's DHCP server assigns 10.0.2.15 with gateway 10.0.2.2.
 
 ## Troubleshooting
 
-- **NET says "Could not load NE2000"** — the driver may already be loaded. Only run NET once per session.
+- **FDNET says "Could not load NE2000"** — the driver may already be loaded. Only run FDNET once per session.
 - **DHCP timeout** — make sure your iPad/Mac has an internet connection.
 - **Can't resolve hostnames** — use IP addresses, or check that DHCP completed successfully.
 - **Slow transfers** — normal for emulated NE2000 over SLIRP. Large files take time.
