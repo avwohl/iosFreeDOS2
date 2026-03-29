@@ -1,10 +1,10 @@
 # About This App
 
-This app runs DOS inside an emulated 386 PC powered by DOSBox Staging. You can choose which DOS to run: FreeDOS, MS-DOS, or DOSBox's built-in DOS.
+qxDOS provides the iOS/Mac user interface, touch controls, disk management, and the infrastructure to boot different DOS operating systems. All PC hardware emulation is provided by [DOSBox Staging](https://dosbox-staging.github.io/), an independent open-source project. The operating systems — [FreeDOS](https://www.freedos.org/), [MS-DOS](https://github.com/microsoft/MS-DOS), etc. — are independent projects with their own developers and licenses. qxDOS did not write or contribute code to any of them.
 
 ## The Emulated PC
 
-The hardware emulation (provided by DOSBox Staging) includes:
+The hardware emulation (provided by [DOSBox Staging](https://dosbox-staging.github.io/)) includes:
 
 - **CPU** — 386/486 with FPU and DPMI (protected mode for games like DOOM)
 - **Graphics** — VGA/SVGA (S3 Trio64), all standard video modes
@@ -18,7 +18,7 @@ This hardware layer is the same regardless of which DOS you choose.
 ## DOS Types
 
 ### FreeDOS (default)
-FreeDOS is a free, open-source DOS compatible with MS-DOS. The app boots the real FreeDOS kernel from your disk image. The pre-built disk images come with KERNEL.SYS, COMMAND.COM, and utilities in `C:\FREEDOS\BIN`. You can also install FreeDOS from scratch using the official boot floppy and LiveCD ISO from the disk catalog. License: GPL v2+. Website: freedos.org.
+FreeDOS is a free, open-source DOS compatible with MS-DOS, developed by the [FreeDOS Project](https://www.freedos.org/). The app boots the real FreeDOS kernel from your disk image. The pre-built disk images come with KERNEL.SYS, COMMAND.COM, and utilities in `C:\FREEDOS\BIN`, all written and maintained by the FreeDOS Project. You can also install FreeDOS from scratch using the official boot floppy and LiveCD ISO from the disk catalog. License: GPL v2+. Source: [github.com/FDOS](https://github.com/FDOS).
 
 ### MS-DOS
 MS-DOS is the original Microsoft operating system. The app boots the real MS-DOS kernel from your disk image. MS-DOS 4.0 (1988) was released under the MIT license by Microsoft in 2024. You can also use your own MS-DOS install media (5.0, 6.22, etc.).
@@ -82,3 +82,15 @@ The app supports several disk image formats:
 - **CD-ROM images** (.iso) — read-only CD-ROM
 
 You can download ready-made images from the in-app disk catalog, import your own, or create blank disks.
+
+## Open Source Licenses
+
+This app includes GPL-licensed software. Complete source code is available at the links below, or upon request via [GitHub Issues](https://github.com/avwohl/qxDOS/issues). This offer is valid for three years from the date of each release.
+
+- **qxDOS** (GPL v3) — [github.com/avwohl/qxDOS](https://github.com/avwohl/qxDOS)
+- **DOSBox Staging** (GPL v2+) — [github.com/dosbox-staging/dosbox-staging](https://github.com/dosbox-staging/dosbox-staging)
+- **FreeDOS** (GPL v2+) — [github.com/FDOS](https://github.com/FDOS)
+- **mTCP** (GPL v3) — [brutman.com/mTCP](https://www.brutman.com/mTCP/)
+- **NE2000 packet driver** (Crynwr Open Source) — [crynwr.com/drivers](http://crynwr.com/drivers/)
+- **libslirp** (BSD 3-Clause) — [gitlab.freedesktop.org/slirp/libslirp](https://gitlab.freedesktop.org/slirp/libslirp)
+- **ZIPFoundation** (MIT) — [github.com/weichsel/ZIPFoundation](https://github.com/weichsel/ZIPFoundation)

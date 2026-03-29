@@ -2,16 +2,26 @@
 
 A DOS emulator for iOS and Mac using
 [DOSBox Staging](https://dosbox-staging.github.io/) as the emulation engine.
-Boots [FreeDOS](https://www.freedos.org/), MS-DOS, or DOSBox's built-in DOS.
+Boots [FreeDOS](https://www.freedos.org/), [MS-DOS](https://github.com/microsoft/MS-DOS), or [DOSBox](https://dosbox-staging.github.io/)'s built-in DOS.
 
 ## What is this?
 
-qxDOS brings a full 386 PC to iPad and Mac — VGA graphics, Sound Blaster
-audio, mouse support, and networking. Choose which DOS to run:
+qxDOS is a SwiftUI front-end that lets you run DOS on iPad and Mac.
+The qxDOS project provides only the iOS/Mac app shell — the user
+interface, touch controls, disk management, and the infrastructure to
+boot different DOS operating systems. All PC emulation is provided by
+[DOSBox Staging](https://dosbox-staging.github.io/), an independent
+open-source project. The operating systems themselves —
+[FreeDOS](https://www.freedos.org/),
+[MS-DOS](https://github.com/microsoft/MS-DOS), etc. — are independent
+projects with their own developers and licenses. qxDOS did not write
+or contribute code to any of them.
 
-- **FreeDOS** — free, open-source DOS (GPL v2+) with 230+ utilities
-- **MS-DOS** — bring your own media, or use MS-DOS 4.0 (MIT license)
-- **DOSBox DOS** — DOSBox's built-in kernel and shell, no OS on disk needed
+Choose which DOS to run:
+
+- **FreeDOS** — free, open-source DOS by the [FreeDOS Project](https://www.freedos.org/) (GPL v2+)
+- **MS-DOS** — [Microsoft](https://github.com/microsoft/MS-DOS)'s original DOS; bring your own media, or use MS-DOS 4.0 (MIT license)
+- **DOSBox DOS** — [DOSBox Staging](https://dosbox-staging.github.io/)'s built-in kernel and shell, no OS on disk needed
 
 Use it to run classic DOS games, utilities, learn DOS programming, or
 explore period software archives like Simtel and Walnut Creek.
@@ -131,5 +141,18 @@ SwiftUI App (qxDOS/)
 
 ## License
 
-DOSBox Staging is licensed under GPL-2.0-or-later.
-See [LICENSE](LICENSE) for the full license text.
+qxDOS is licensed under GPL-3.0-or-later. See [LICENSE](LICENSE) for
+the full license text.
+
+This app distributes GPL-licensed binaries from several projects.
+Complete source code is available at:
+
+- **qxDOS:** https://github.com/avwohl/qxDOS
+- **DOSBox Staging (GPL v2+):** https://github.com/dosbox-staging/dosbox-staging
+- **FreeDOS kernel and utilities (GPL v2+):** https://github.com/FDOS
+- **mTCP (GPL v3):** https://www.brutman.com/mTCP/
+
+You may also request source code by opening an issue at
+https://github.com/avwohl/qxDOS/issues. This offer is valid for three
+years from the date of each release. See [RIGHTS.md](RIGHTS.md) for
+full licensing details.

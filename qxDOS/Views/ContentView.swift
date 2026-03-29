@@ -790,7 +790,7 @@ struct AboutView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
-                    Text("A DOS emulator for your phone, tablet, and desktop, powered by DOSBox Staging.")
+                    Text("A DOS emulator for your phone, tablet, and desktop. qxDOS provides the app shell and UI. PC emulation by DOSBox Staging. DOS operating systems by their respective projects.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -807,39 +807,43 @@ struct AboutView: View {
                 Text("This emulator is licensed under the GNU General Public License v3.0. Source code is available on GitHub.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+
+                Text("This app includes GPL-licensed binaries from DOSBox Staging (GPL v2+), FreeDOS (GPL v2+), and mTCP (GPL v3). Complete source code is available from the links below, or upon request via GitHub Issues. This offer is valid for three years from each release.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
 
             Section("Links") {
-                Link(destination: URL(string: "https://www.freedos.org")!) {
-                    HStack {
-                        Label("FreeDOS Project", systemImage: "desktopcomputer")
-                        Spacer()
-                        Image(systemName: "arrow.up.right.square")
-                            .foregroundColor(.secondary)
-                    }
-                }
-
-                Link(destination: URL(string: "https://github.com/FDOS/kernel")!) {
-                    HStack {
-                        Label("FreeDOS Kernel Source", systemImage: "doc.text")
-                        Spacer()
-                        Image(systemName: "arrow.up.right.square")
-                            .foregroundColor(.secondary)
-                    }
-                }
-
-                Link(destination: URL(string: "https://dosbox-staging.github.io")!) {
-                    HStack {
-                        Label("DOSBox Staging", systemImage: "cpu")
-                        Spacer()
-                        Image(systemName: "arrow.up.right.square")
-                            .foregroundColor(.secondary)
-                    }
-                }
-
                 Link(destination: URL(string: "https://github.com/avwohl/qxDOS")!) {
                     HStack {
-                        Label("Source Code on GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
+                        Label("qxDOS Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Link(destination: URL(string: "https://github.com/dosbox-staging/dosbox-staging")!) {
+                    HStack {
+                        Label("DOSBox Staging Source (GPL v2+)", systemImage: "cpu")
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Link(destination: URL(string: "https://github.com/FDOS")!) {
+                    HStack {
+                        Label("FreeDOS Source (GPL v2+)", systemImage: "desktopcomputer")
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Link(destination: URL(string: "https://www.brutman.com/mTCP/")!) {
+                    HStack {
+                        Label("mTCP Source (GPL v3)", systemImage: "network")
                         Spacer()
                         Image(systemName: "arrow.up.right.square")
                             .foregroundColor(.secondary)
@@ -857,11 +861,19 @@ struct AboutView: View {
             }
 
             Section("Acknowledgments") {
-                Text("FreeDOS is a free, open-source DOS-compatible operating system licensed under the GNU GPL v2+. The FreeDOS kernel is maintained by the FreeDOS Project at freedos.org. Source code is available at github.com/FDOS/kernel.")
+                Text("DOSBox Staging is licensed under GPL v2+. Source: github.com/dosbox-staging/dosbox-staging")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                Text("FreeDOS \"Blinky the Fish\" mascot by Bas Snabilie, licensed under CC-BY 2.5.")
+                Text("FreeDOS is licensed under GPL v2+. Copyright 1995-2012 Pasquale J. Villani and The FreeDOS Project. Source: github.com/FDOS")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Text("mTCP by Michael Brutman is licensed under GPL v3. Source: brutman.com/mTCP")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Text("NE2000 packet driver by Crynwr Software. Source: crynwr.com/drivers")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

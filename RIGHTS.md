@@ -1,7 +1,22 @@
 # Software Rights and Licensing
 
 This document describes the licensing and legal status of software
-distributed with FreeDOS for iOS/Mac.
+distributed with qxDOS.
+
+## Source Code Offer (GPL Compliance)
+
+qxDOS distributes binaries of several GPL-licensed programs. In
+accordance with the GNU General Public License, the complete
+corresponding source code for all GPL-licensed components is available:
+
+- **qxDOS app:** https://github.com/avwohl/qxDOS
+- **DOSBox Staging:** https://github.com/dosbox-staging/dosbox-staging
+- **FreeDOS kernel and utilities:** https://github.com/FDOS
+- **mTCP:** https://www.brutman.com/mTCP/
+
+You may also request a copy of the source code by contacting the
+developer through https://github.com/avwohl/qxDOS/issues. This offer
+is valid for three years from the date of each release.
 
 ## DOSBox Staging
 

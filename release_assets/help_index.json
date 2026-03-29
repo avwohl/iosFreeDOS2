@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "base_url": "https://github.com/avwohl/qxDOS/releases/latest/download/",
   "topics": [
     {
@@ -51,16 +51,28 @@
       "url": "https://help.fdos.org/"
     },
     {
+      "id": "github_source",
+      "title": "qxDOS Source Code (GPL v3)",
+      "description": "qxDOS source code, issues, and releases",
+      "url": "https://github.com/avwohl/qxDOS"
+    },
+    {
+      "id": "dosbox_source",
+      "title": "DOSBox Staging Source (GPL v2+)",
+      "description": "DOSBox Staging emulator source code",
+      "url": "https://github.com/dosbox-staging/dosbox-staging"
+    },
+    {
       "id": "freedos_source",
-      "title": "FreeDOS Source Code",
+      "title": "FreeDOS Source Code (GPL v2+)",
       "description": "FreeDOS kernel, drivers, and utilities on GitHub",
       "url": "https://github.com/FDOS"
     },
     {
-      "id": "github_source",
-      "title": "qxDOS Source Code",
-      "description": "qxDOS source code, issues, and releases",
-      "url": "https://github.com/avwohl/qxDOS"
+      "id": "mtcp_source",
+      "title": "mTCP Source (GPL v3)",
+      "description": "TCP/IP networking tools for DOS by Michael Brutman",
+      "url": "https://www.brutman.com/mTCP/"
     }
   ]
 }

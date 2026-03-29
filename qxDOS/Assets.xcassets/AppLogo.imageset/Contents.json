@@ -1,12 +1,12 @@
 {
   "images" : [
     {
-      "filename" : "freedos_logo.png",
+      "filename" : "applogo.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "freedos_logo@2x.png",
+      "filename" : "applogo@2x.png",
       "idiom" : "universal",
       "scale" : "2x"
     }

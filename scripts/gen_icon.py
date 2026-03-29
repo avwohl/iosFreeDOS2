@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
-"""Generate FreeDOS app icon with Blinky the Fish in all App Store sizes.
+"""Generate qxDOS app icon with green phosphor dot C> prompt.
 
-Blinky the Fish mascot by Bas Snabilie, CC-BY 2.5.
-SVG source: commons.wikimedia.org/wiki/File:FreeDOS_logo4_2010.svg
+Style matches the ioscpm icon (A> prompt) but uses C> for DOS.
 
-Requires: brew install librsvg; pip3 install Pillow
+Requires: pip3 install Pillow
 """
 
+import math
 import os
-import subprocess
 import sys
-import tempfile
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageDraw, ImageFilter
 except ImportError:
     print("Pillow not installed. Run: pip3 install Pillow")
     sys.exit(1)
@@ -22,217 +20,239 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(SCRIPT_DIR, "..", "qxDOS", "Assets.xcassets")
 ICON_DIR = os.path.join(ASSETS_DIR, "AppIcon.appiconset")
 LOGO_DIR = os.path.join(ASSETS_DIR, "AppLogo.imageset")
-SVG_PATH = os.path.join(SCRIPT_DIR, "blinky.svg")
 
-# Standalone Blinky fish SVG (paths extracted from the full FreeDOS logo)
-FISH_SVG = """\
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-400 -200 3400 2600">
-  <g>
-    <path d="m 1017.2002,7.23844 c -318.99996,23 -569.99996,185 -784.99996,504 -122,181.99996 -158.000003,292.99996 -226.0000033,693.99996 -5.99999999,36 -8,117 -4,203 8.0000003,157 1,141 84.0000003,195 19.000003,12 63.000003,60 98.000003,105 34,46 74,93 87,103 l 25,19 -31,67 c -48,102 -45,243 5,243 19,0 92,-53 147,-106 l 45,-44 100,39 c 356,139 780.99996,108 1110.99996,-80 l 88,-51 34,38 c 19,22 60,71 90,109 103,128 123,139 148,78 41,-96 31,-178 -42,-364 l -18,-47 69,-66 c 83,-79 73,-77 118,-18 63,84 193,180 293,218 70,26 71,2 8,-101 -116,-186 -123,-241 -45,-351 54,-78 115,-137 166,-161 41,-19 43,-32 13,-60 -51,-46 -152,-58 -235,-29 -50,18 -59,12 -72,-45 -158,-702.99996 -620,-1127.99996 -1196,-1096.99996 -17,1 -50,3 -75,5 z" fill="black"/>
-    <path d="m 1402.2002,93.23844 c 169,42 296,117 421,249 223,237.99996 350,522.99996 413,925.99996 1,2 16,-9 34,-24 55,-46 166,-75 235,-59 27,5 26,7 -63,99 -155,160 -164,275 -34,458 13,17 16,28 8,28 -49,0 -265,-234 -260,-282 6,-60 -74,-18 -122,65 -14,23 -37,53 -52,67 l -27,25 -28,-34 c -26,-30 -30,-32 -49,-19 l -20,14 20,34 c 63,102 128,290 129,365 0,83 -24,82 -83,-4 -46,-69 -176,-210 -208,-226 -68,-36 -106,-12 -54,34 51,44 51,44 -76,114 -232,127 -778.99996,158 -979.99996,57 -111,-57 -287,-191 -331,-252 l -21,-31 24,6 c 13,3 65,17 116,31 205,56 773.99996,65 882.99996,14 142,-66 158,-161 18,-108 -249,95 -761.99996,67 -1067.99996,-57 -74,-30 -141.000003,-58 -149.000003,-61 -18,-7 -9,-324 13,-452 60.000003,-351 248.000003,-686.99996 469.000003,-837.99996 23,-16 59,-40 80,-55 140,-96 534.99996,-139 761.99996,-84 z M 386.20024,1931.2384 c 13,17 22,31 20,33 -44,30 -111,67 -116,62 -9,-9 14,-78 34,-103 23,-29 33,-28 62,8 z" fill="#bfcfe7"/>
-    <path d="m 355.20024,1086.2384 c -119,64 -155,279 -61,365 156,145 374,40 377,-181 2,-138 -193,-251 -316,-184 z" fill="black"/>
-    <path d="m 532.20024,1138.2384 c 111,69 128,154 53,259 -120,167 -362,12 -287,-184 32,-85 153,-124 234,-75 z" fill="#ffffff"/>
-    <path d="m 412.20024,1179.2384 c -94,39 -79,201 19,209 44,4 62,-8 82,-56 42,-101 -15,-188 -101,-153 z m 79,44 c 6,9 7,19 3,23 -12,13 -82,-10 -85,-28 -6,-32 61,-28 82,5 z" fill="black"/>
-    <path d="m 836.20024,1150.2384 c -152,46 -147,280 8,336 67,23 106,18 147,-20 132.99996,-127 14.99996,-368 -155,-316 z" fill="black"/>
-    <path d="m 927.20024,1205.2384 c 87.99996,46 100.99996,145 28,222 -61,65 -178,-10 -178,-112 0,-96 73,-150 150,-110 z" fill="#ffffff"/>
-    <path d="m 832.20024,1256.2384 c -43,66 -7,167 53,148 59,-19 82,-48 82,-104 0,-63 -101,-96 -135,-44 z m 85,9 c 16,19 5,34 -20,28 -24,-6 -34,-19 -25,-33 9,-14 31,-12 45,5 z" fill="black"/>
-  </g>
-</svg>"""
+# 5x7 bitmap font characters (and 6-wide block cursor)
+CHARS = {
+    'C': [
+        "01110",
+        "10001",
+        "10000",
+        "10000",
+        "10000",
+        "10001",
+        "01110",
+    ],
+    '>': [
+        "10000",
+        "01000",
+        "00100",
+        "00010",
+        "00100",
+        "01000",
+        "10000",
+    ],
+    'BLOCK': [
+        "111111",
+        "111111",
+        "111111",
+        "111111",
+        "111111",
+        "111111",
+        "111111",
+    ],
+    'D': [
+        "11110",
+        "10001",
+        "10001",
+        "10001",
+        "10001",
+        "10001",
+        "11110",
+    ],
+    'O': [
+        "01110",
+        "10001",
+        "10001",
+        "10001",
+        "10001",
+        "10001",
+        "01110",
+    ],
+    'S': [
+        "01110",
+        "10001",
+        "10000",
+        "01110",
+        "00001",
+        "10001",
+        "01110",
+    ],
+}
 
-BG_COLOR = (21, 101, 192)  # Material Blue 800
+GREEN = (51, 255, 51)
 
-# All sizes needed for iOS/macOS App Store
-SIZES = [
-    ("icon_1024.png", 1024),
-    ("icon_180.png", 180),
-    ("icon_120.png", 120),
-    ("icon_167.png", 167),
-    ("icon_152.png", 152),
-    ("icon_76.png", 76),
-    ("icon_80.png", 80),
-    ("icon_87.png", 87),
-    ("icon_58.png", 58),
-    ("icon_40.png", 40),
-    ("icon_60.png", 60),
-    ("icon_20.png", 20),
-    ("icon_29.png", 29),
-    ("icon_1024_mac.png", 1024),
-    ("icon_512.png", 512),
-    ("icon_256.png", 256),
-    ("icon_128.png", 128),
-    ("icon_64.png", 64),
-    ("icon_32.png", 32),
+# Mac icon sizes (filename, pixel size)
+MAC_SIZES = [
     ("icon_16.png", 16),
+    ("icon_32.png", 32),
+    ("icon_64.png", 64),
+    ("icon_128.png", 128),
+    ("icon_256.png", 256),
+    ("icon_512.png", 512),
+    ("icon_1024_mac.png", 1024),
 ]
 
 
-def render_svg(svg_content, width, height):
-    """Render SVG content to a PIL Image using rsvg-convert."""
-    with tempfile.NamedTemporaryFile(suffix=".svg", mode="w", delete=False) as f:
-        f.write(svg_content)
-        svg_tmp = f.name
-    png_tmp = svg_tmp.replace(".svg", ".png")
-    try:
-        subprocess.run(
-            ["rsvg-convert", "-w", str(width), "-h", str(height),
-             "--keep-aspect-ratio", "-o", png_tmp, svg_tmp],
-            check=True, capture_output=True
-        )
-        return Image.open(png_tmp).convert("RGBA")
-    finally:
-        os.unlink(svg_tmp)
-        if os.path.exists(png_tmp):
-            pass  # caller uses the image
+def draw_char_dots(draw, bitmap, x, y, radius, spacing, color):
+    """Draw a character from its bitmap as phosphor dots."""
+    for row_idx, row in enumerate(bitmap):
+        for col_idx, pixel in enumerate(row):
+            if pixel == '1':
+                cx = x + col_idx * spacing
+                cy = y + row_idx * spacing
+                draw.ellipse(
+                    [cx - radius, cy - radius, cx + radius, cy + radius],
+                    fill=color
+                )
 
 
-def render_fish_icon(size):
-    """Render Blinky on a blue background at the given size."""
-    # Render fish at high res then scale
-    render_size = max(size * 4, 2048)
-    fish = render_svg(FISH_SVG, render_size, render_size)
-
-    # Trim transparent area
-    bbox = fish.getbbox()
-    if bbox:
-        fish = fish.crop(bbox)
-
-    # Fit fish into square with padding (10% each side)
-    fw, fh = fish.size
-    target = int(size * 0.80)
-    scale = min(target / fw, target / fh)
-    new_w = int(fw * scale)
-    new_h = int(fh * scale)
-    fish = fish.resize((new_w, new_h), Image.LANCZOS)
-
-    # Create blue background and paste fish centered
-    icon = Image.new("RGB", (size, size), BG_COLOR)
-    ox = (size - new_w) // 2
-    oy = (size - new_h) // 2
-    icon.paste(fish, (ox, oy), fish)  # use alpha as mask
-
-    return icon
+def calc_width(text, spacing, gap):
+    """Calculate pixel width of a string rendered in dot font."""
+    width = 0
+    for i, ch in enumerate(text):
+        if ch == ' ':
+            width += spacing * 2
+            continue
+        bitmap = CHARS.get(ch)
+        if bitmap:
+            width += len(bitmap[0]) * spacing
+            if i < len(text) - 1:
+                width += gap
+    return width
 
 
-def render_full_logo():
-    """Render the full FreeDOS logo (text + fish) for the About view."""
-    # Render at 3x for quality (original is 565x96)
-    logo = render_svg(open(SVG_PATH).read(), 1695, 288)
-    bbox = logo.getbbox()
-    if bbox:
-        logo = logo.crop(bbox)
-    return logo
+def create_icon(size=1024):
+    """Generate the qxDOS icon at the given size."""
+    img = Image.new('RGB', (size, size), (0, 0, 0))
+    draw = ImageDraw.Draw(img)
+
+    # Subtle radial gradient background
+    cx, cy = size / 2, size / 2
+    for y in range(size):
+        for x in range(size):
+            dx = (x - cx) / cx
+            dy = (y - cy) / cy
+            dist = math.sqrt(dx * dx + dy * dy)
+            val = int(max(0, 12 - dist * 10))
+            if val > 0:
+                img.putpixel((x, y), (val, val, val))
+
+    # Glow layer
+    glow = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    glow_draw = ImageDraw.Draw(glow)
+
+    # --- Large dots: C> cursor ---
+    lr = 14           # dot radius
+    ls = 38           # dot spacing
+    lg = 18           # inter-character gap
+    glow_r = int(lr * 2.2)
+
+    # Layout: C  >  BLOCK   (with space before block cursor)
+    parts = ['C', '>', 'BLOCK']
+    widths = [len(CHARS[p][0]) * ls for p in parts]
+    total_w = sum(widths) + lg + ls * 2  # gap after C, space before block
+    px = (size - total_w) // 2
+    py = 290
+
+    def draw_with_glow(bitmap, x, y, r, sp):
+        draw_char_dots(draw, bitmap, x, y, r, sp, GREEN)
+        gr = int(r * 2.2)
+        for ri, row in enumerate(bitmap):
+            for ci, pixel in enumerate(row):
+                if pixel == '1':
+                    dcx = x + ci * sp
+                    dcy = y + ri * sp
+                    glow_draw.ellipse(
+                        [dcx - gr, dcy - gr, dcx + gr, dcy + gr],
+                        fill=(51, 255, 51, 30)
+                    )
+
+    # C
+    draw_with_glow(CHARS['C'], px, py, lr, ls)
+    x = px + widths[0] + lg
+    # >
+    draw_with_glow(CHARS['>'], x, py, lr, ls)
+    x += widths[1] + ls * 2
+    # block cursor
+    draw_with_glow(CHARS['BLOCK'], x, py, lr, ls)
+
+    # --- Small dots: DOS ---
+    sr = 7
+    ss = 19
+    sg = 12
+    dos_w = calc_width("DOS", ss, sg)
+    dos_x = (size - dos_w) // 2
+    dos_y = 590
+
+    for ch in "DOS":
+        bm = CHARS[ch]
+        draw_with_glow(bm, dos_x, dos_y, sr, ss)
+        dos_x += len(bm[0]) * ss + sg
+
+    # Composite glow
+    glow_blurred = glow.filter(ImageFilter.GaussianBlur(radius=12))
+    glow_rgb = glow_blurred.convert('RGB')
+    result = Image.blend(img, glow_rgb, 0.4)
+
+    # Restore background gradient and redraw crisp dots on top
+    draw2 = ImageDraw.Draw(result)
+    for y in range(size):
+        for x in range(size):
+            r, g, b = result.getpixel((x, y))
+            dx = (x - cx) / cx
+            dy = (y - cy) / cy
+            dist = math.sqrt(dx * dx + dy * dy)
+            base = int(max(0, 12 - dist * 10))
+            result.putpixel((x, y), (max(r, base), max(g, base), max(b, base)))
+
+    # Redraw crisp dots
+    px2 = (size - total_w) // 2
+    draw_char_dots(draw2, CHARS['C'], px2, py, lr, ls, GREEN)
+    x2 = px2 + widths[0] + lg
+    draw_char_dots(draw2, CHARS['>'], x2, py, lr, ls, GREEN)
+    x2 += widths[1] + ls * 2
+    draw_char_dots(draw2, CHARS['BLOCK'], x2, py, lr, ls, GREEN)
+
+    dos_x2 = (size - calc_width("DOS", ss, sg)) // 2
+    for ch in "DOS":
+        bm = CHARS[ch]
+        draw_char_dots(draw2, bm, dos_x2, dos_y, sr, ss, GREEN)
+        dos_x2 += len(bm[0]) * ss + sg
+
+    return result
 
 
-def generate_contents_json():
+def generate_icon_contents_json():
     return """{
   "images" : [
     {
-      "filename" : "icon_40.png",
-      "idiom" : "iphone",
-      "scale" : "2x",
-      "size" : "20x20"
+      "filename" : "appicon.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
     },
     {
-      "filename" : "icon_60.png",
-      "idiom" : "iphone",
-      "scale" : "3x",
-      "size" : "20x20"
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ],
+      "filename" : "appicon-dark.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
     },
     {
-      "filename" : "icon_58.png",
-      "idiom" : "iphone",
-      "scale" : "2x",
-      "size" : "29x29"
-    },
-    {
-      "filename" : "icon_87.png",
-      "idiom" : "iphone",
-      "scale" : "3x",
-      "size" : "29x29"
-    },
-    {
-      "filename" : "icon_80.png",
-      "idiom" : "iphone",
-      "scale" : "2x",
-      "size" : "40x40"
-    },
-    {
-      "filename" : "icon_120.png",
-      "idiom" : "iphone",
-      "scale" : "3x",
-      "size" : "40x40"
-    },
-    {
-      "filename" : "icon_120.png",
-      "idiom" : "iphone",
-      "scale" : "2x",
-      "size" : "60x60"
-    },
-    {
-      "filename" : "icon_180.png",
-      "idiom" : "iphone",
-      "scale" : "3x",
-      "size" : "60x60"
-    },
-    {
-      "filename" : "icon_20.png",
-      "idiom" : "ipad",
-      "scale" : "1x",
-      "size" : "20x20"
-    },
-    {
-      "filename" : "icon_40.png",
-      "idiom" : "ipad",
-      "scale" : "2x",
-      "size" : "20x20"
-    },
-    {
-      "filename" : "icon_29.png",
-      "idiom" : "ipad",
-      "scale" : "1x",
-      "size" : "29x29"
-    },
-    {
-      "filename" : "icon_58.png",
-      "idiom" : "ipad",
-      "scale" : "2x",
-      "size" : "29x29"
-    },
-    {
-      "filename" : "icon_40.png",
-      "idiom" : "ipad",
-      "scale" : "1x",
-      "size" : "40x40"
-    },
-    {
-      "filename" : "icon_80.png",
-      "idiom" : "ipad",
-      "scale" : "2x",
-      "size" : "40x40"
-    },
-    {
-      "filename" : "icon_76.png",
-      "idiom" : "ipad",
-      "scale" : "1x",
-      "size" : "76x76"
-    },
-    {
-      "filename" : "icon_152.png",
-      "idiom" : "ipad",
-      "scale" : "2x",
-      "size" : "76x76"
-    },
-    {
-      "filename" : "icon_167.png",
-      "idiom" : "ipad",
-      "scale" : "2x",
-      "size" : "83.5x83.5"
-    },
-    {
-      "filename" : "icon_1024.png",
-      "idiom" : "ios-marketing",
-      "scale" : "1x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "tinted"
+        }
+      ],
+      "filename" : "appicon-tinted.png",
+      "idiom" : "universal",
+      "platform" : "ios",
       "size" : "1024x1024"
     },
     {
@@ -303,52 +323,16 @@ def generate_contents_json():
 }"""
 
 
-def main():
-    # Generate app icons
-    os.makedirs(ICON_DIR, exist_ok=True)
-
-    unique_sizes = sorted(set(s for _, s in SIZES))
-    rendered = {}
-    for sz in unique_sizes:
-        print(f"  Rendering icon {sz}x{sz}...")
-        rendered[sz] = render_fish_icon(sz)
-
-    for filename, sz in SIZES:
-        path = os.path.join(ICON_DIR, filename)
-        rendered[sz].save(path, "PNG")
-        print(f"  Saved {filename} ({sz}x{sz})")
-
-    contents_path = os.path.join(ICON_DIR, "Contents.json")
-    with open(contents_path, "w") as f:
-        f.write(generate_contents_json())
-    print("  Saved AppIcon Contents.json")
-
-    # Generate full FreeDOS logo for About view
-    os.makedirs(LOGO_DIR, exist_ok=True)
-    print("  Rendering FreeDOS logo for About view...")
-    logo = render_full_logo()
-    logo_path = os.path.join(LOGO_DIR, "freedos_logo.png")
-    logo.save(logo_path, "PNG")
-    print(f"  Saved freedos_logo.png ({logo.size[0]}x{logo.size[1]})")
-
-    # Also save @2x version
-    logo_2x = render_svg(open(SVG_PATH).read(), 3390, 576)
-    bbox = logo_2x.getbbox()
-    if bbox:
-        logo_2x = logo_2x.crop(bbox)
-    logo_2x_path = os.path.join(LOGO_DIR, "freedos_logo@2x.png")
-    logo_2x.save(logo_2x_path, "PNG")
-    print(f"  Saved freedos_logo@2x.png ({logo_2x.size[0]}x{logo_2x.size[1]})")
-
-    logo_contents = """{
+def generate_logo_contents_json():
+    return """{
   "images" : [
     {
-      "filename" : "freedos_logo.png",
+      "filename" : "applogo.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "freedos_logo@2x.png",
+      "filename" : "applogo@2x.png",
       "idiom" : "universal",
       "scale" : "2x"
     }
@@ -358,17 +342,55 @@ def main():
     "version" : 1
   }
 }"""
+
+
+def main():
+    os.makedirs(ICON_DIR, exist_ok=True)
+    os.makedirs(LOGO_DIR, exist_ok=True)
+
+    print("Rendering 1024x1024 icon...")
+    icon = create_icon(1024)
+
+    # iOS icon (single 1024x1024)
+    icon.save(os.path.join(ICON_DIR, "appicon.png"), "PNG")
+    print("  Saved appicon.png")
+
+    # Dark variant (same image — already dark)
+    icon.save(os.path.join(ICON_DIR, "appicon-dark.png"), "PNG")
+    print("  Saved appicon-dark.png")
+
+    # Tinted variant (white for iOS tinting)
+    tinted = Image.new('RGB', (1024, 1024), (255, 255, 255))
+    tinted.save(os.path.join(ICON_DIR, "appicon-tinted.png"), "PNG")
+    print("  Saved appicon-tinted.png")
+
+    # Mac sizes
+    for filename, sz in MAC_SIZES:
+        resized = icon.resize((sz, sz), Image.LANCZOS)
+        path = os.path.join(ICON_DIR, filename)
+        resized.save(path, "PNG")
+        print(f"  Saved {filename} ({sz}x{sz})")
+
+    # Contents.json
+    with open(os.path.join(ICON_DIR, "Contents.json"), "w") as f:
+        f.write(generate_icon_contents_json())
+    print("  Saved AppIcon Contents.json")
+
+    # AppLogo for in-app display
+    icon.resize((256, 256), Image.LANCZOS).save(
+        os.path.join(LOGO_DIR, "applogo.png"), "PNG")
+    icon.resize((512, 512), Image.LANCZOS).save(
+        os.path.join(LOGO_DIR, "applogo@2x.png"), "PNG")
     with open(os.path.join(LOGO_DIR, "Contents.json"), "w") as f:
-        f.write(logo_contents)
-    print("  Saved FreeDOSLogo Contents.json")
+        f.write(generate_logo_contents_json())
+    print("  Saved AppLogo images")
 
     # Top-level Assets.xcassets Contents.json
     top_contents = os.path.join(ASSETS_DIR, "Contents.json")
     with open(top_contents, "w") as f:
         f.write('{\n  "info" : {\n    "author" : "xcode",\n    "version" : 1\n  }\n}\n')
 
-    print(f"\nDone! Generated {len(SIZES)} icon files + FreeDOS logo.")
-    print("Blinky the Fish mascot by Bas Snabilie, CC-BY 2.5")
+    print(f"\nDone! Generated app icon + logo.")
 
 
 if __name__ == "__main__":
